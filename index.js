@@ -74,17 +74,25 @@ async function start() {
     try {
 
         console.log(
-            chalk.blue("🔐 Preparing session...")
-        );
+    chalk.blue("🌍 Connecting to Kenya-Ultra Core...")
+);
 
-        const authState =
-            await bootstrapAuthState(SESSION_ID);
+await core.bootstrap();
 
-        console.log(
-            chalk.green("✅ Session ready")
-        );
+console.log("");
 
-        await connect(authState);
+console.log(
+    chalk.blue("🔐 Preparing session...")
+);
+
+const authState =
+    await bootstrapAuthState(SESSION_ID);
+
+console.log(
+    chalk.green("✅ Session ready")
+);
+
+await connect(authState);
 
     } catch (error) {
 
@@ -158,17 +166,33 @@ async function connect(authState) {
                 }
 
                 const heartbeat =
-                    await core.heartbeat();
+    await core.heartbeat();
 
-                if (heartbeat) {
+if (heartbeat) {
 
-                    console.log(
-                        chalk.green(
-                            "🟢 Core Online"
-                        )
-                    );
+    console.log(
+        chalk.green("🟢 Core Online")
+    );
 
-                }
+    console.log(
+        chalk.cyan(
+            `✓ Commands : ${core.manifest?.commandCount || "Unknown"}`
+        )
+    );
+
+    console.log(
+        chalk.cyan(
+            `✓ Protocol : v${core.manifest?.protocol || "?"}`
+        )
+    );
+
+    console.log(
+        chalk.cyan(
+            `✓ Version : ${core.manifest?.version || VERSION}`
+        )
+    );
+
+}
 
             }
 
