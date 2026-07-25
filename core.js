@@ -1,11 +1,15 @@
 import axios from "axios";
 
-// Default public Core endpoint — users only need to set SESSION_ID.
-// Advanced users running their own Core instance can still override
-// this by setting CORE_URL in their .env file.
-const CORE_URL = process.env.CORE_URL || "http://kenya-ultra-panel.duckdns.org:3001";
+const CORE_URL =
+    process.env.CORE_URL ||
+    "http://kenya-ultra-panel.duckdns.org:3001";
 
 class KenyaUltraCore {
+
+    constructor() {
+        this.manifest = null;
+        this.protocol = null;
+    }
 
     async validate(sessionId) {
 
@@ -51,15 +55,17 @@ class KenyaUltraCore {
 
         } catch (error) {
 
-    console.log("========== CORE ERROR ==========");
-    console.dir(error.response?.data || error, { depth: null });
-    console.log("================================");
+            console.log("========== CORE ERROR ==========");
+            console.dir(error.response?.data || error, {
+                depth: null
+            });
+            console.log("================================");
 
-    throw new Error(
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to execute command."
-    );
+            throw new Error(
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to execute command."
+            );
 
         }
 
@@ -85,12 +91,9 @@ class KenyaUltraCore {
 
         try {
 
-            const { data } = await axios.get(CORE_URL);
+            const { data } = await axios.get(`${CORE_URL}/version`);
 
-            return {
-                success: true,
-                version: data.version
-            };
+            return data;
 
         } catch {
 
@@ -99,6 +102,71 @@ class KenyaUltraCore {
             };
 
         }
+
+    }
+
+    async handshake() {
+
+        const { data } =
+            await axios.get(`${CORE_URL}/handshake`);
+
+        this.protocol = data.protocol;
+
+        return data;
+
+    }
+
+    async getManifest() {
+
+        const { data } =
+            await axios.get(`${CORE_URL}/manifest`);
+
+        this.manifest = data;
+
+        return data;
+
+    }
+
+    async getHealth() {
+
+        const { data } =
+            await axios.get(`${CORE_URL}/health`);
+
+        return data;
+
+    }
+
+    async downloadCommands() {
+
+        return `${CORE_URL}/commands/download`;
+
+    }
+
+    async bootstrap() {
+
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("Connecting to Kenya-Ultra Core...");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        await this.handshake();
+
+        const manifest =
+            await this.getManifest();
+
+        const health =
+            await this.getHealth();
+
+        console.log("✓ Handshake Complete");
+        console.log(`✓ Protocol : v${manifest.protocol}`);
+        console.log(`✓ Version  : ${manifest.version}`);
+        console.log(`✓ Commands : ${manifest.commandCount}`);
+        console.log(`✓ Runtime  : ${manifest.runtime}`);
+        console.log(`✓ Status   : ${health.status}`);
+
+        return {
+            manifest,
+            health
+        };
 
     }
 
