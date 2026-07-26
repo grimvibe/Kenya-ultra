@@ -562,14 +562,6 @@ else if (response.action === "demote") {
 
                 }
 
-                const handledActions = [
-                    "kick",
-                    "add",
-                    "promote",
-                    "demote",
-                    "recover_view_once"
-                ];
-
                 if (response.reply) {
 
     const handled = await executeClientAction({
@@ -613,5 +605,6 @@ if (replyText) {
 }
 
 start();
+
 
             
