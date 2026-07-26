@@ -52,54 +52,68 @@ export async function executeClientAction({
 
             case "image": {
 
-                if (reply.file) {
+                try {
 
-                    const imagePath = path.join(
-                        process.cwd(),
-                        "assets",
-                        "images",
-                        reply.file
-                    );
+                    let image;
 
-                    await sock.sendMessage(jid, {
-                        image: fs.readFileSync(imagePath),
-                        caption: reply.caption
-                    });
+                    if (reply.file) {
 
-                } else {
+                        const imagePath = path.join(
+                            process.cwd(),
+                            "assets",
+                            "images",
+                            reply.file
+                        );
 
-                    await sock.sendMessage(jid, {
-                        image: {
+                        image = fs.readFileSync(imagePath);
+
+                    } else {
+
+                        image = {
                             url: reply.url
-                        },
-                        caption: reply.caption
+                        };
+
+                    }
+
+                    await sock.sendMessage(jid, {
+                        image,
+                        caption: reply.caption || ""
                     });
 
-                }
+                    if (reply.contact) {
 
-                if (reply.contact) {
+                        const phone = reply.contact.phone.replace(/\+/g, "");
 
-                    const vcard =
+                        const vcard =
 `BEGIN:VCARD
 VERSION:3.0
 FN:${reply.contact.displayName}
-TEL;type=CELL;type=VOICE;waid=${reply.contact.phone}:${reply.contact.phone}
+TEL;type=CELL;type=VOICE;waid=${phone}:${reply.contact.phone}
 END:VCARD`;
 
-                    await sock.sendMessage(jid, {
-                        contacts: {
-                            displayName: reply.contact.displayName,
-                            contacts: [
-                                {
+                        await sock.sendMessage(jid, {
+                            contacts: {
+                                displayName: reply.contact.displayName,
+                                contacts: [{
                                     vcard
-                                }
-                            ]
-                        }
-                    });
+                                }]
+                            }
+                        });
+
+                    }
+
+                    return true;
+
+                } catch (err) {
+
+                    console.log(
+                        chalk.red("IMAGE ERROR:", err.message)
+                    );
+
+                    return false;
 
                 }
 
-                return true;
             }
 
             case "document":
@@ -151,3 +165,4 @@ END:VCARD`;
     }
 
 }
+
