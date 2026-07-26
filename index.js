@@ -581,9 +581,7 @@ else if (response.action === "demote") {
         sender
     });
 
-}
-
-if (replyText) {
+} else if (replyText) {
 
     await sock.sendMessage(jid, {
         text: replyText,
@@ -612,4 +610,4 @@ if (replyText) {
 
 start();
 
-    
+            
