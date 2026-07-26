@@ -251,6 +251,9 @@ if (heartbeat) {
 
             const jid = msg.key.remoteJid;
 
+            const sender =
+                msg.key.participant || msg.key.remoteJid;
+
             const text =
                 msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
@@ -275,13 +278,8 @@ if (heartbeat) {
                 if (jid.endsWith("@g.us")) {
 
                     groupMetadata = await sock.groupMetadata(jid);
-                    console.log("First participant:");
-console.dir(groupMetadata.participants[0], { depth: null });
 
-                    const sender =
-    msg.key.participant || msg.key.remoteJid;
-
-const botIds = [
+                    const botIds = [
     sock.user.id.split(":")[0] + "@s.whatsapp.net",
     sock.user.lid.split(":")[0] + "@lid"
 ];
@@ -300,7 +298,7 @@ isBotAdmin = groupMetadata.participants.some(
     SESSION_ID,
     {
         text,
-        sender: msg.key.participant || jid,
+        sender,
         chat: jid,
         pushName: msg.pushName || "",
         isGroup: jid.endsWith("@g.us"),
@@ -374,7 +372,7 @@ const replyMentions =
 
 }
 
-if (response.action === "add") {
+else if (response.action === "add") {
 
     try {
 
@@ -412,7 +410,7 @@ if (response.action === "add") {
 
 }
 
-if (response.action === "promote") {
+else if (response.action === "promote") {
 
     try {
 
@@ -450,7 +448,7 @@ if (response.action === "promote") {
 
 }
 
-if (response.action === "demote") {
+else if (response.action === "demote") {
 
     try {
 
@@ -476,7 +474,7 @@ if (response.action === "demote") {
 
 }
 
-                if (response.action === "recover_view_once") {
+                else if (response.action === "recover_view_once") {
 
     try {
 
@@ -508,10 +506,6 @@ if (response.action === "demote") {
             return;
 
         }
-
-        const sender =
-            msg.key.participant ||
-            msg.key.remoteJid;
 
         if (media.type === "image") {
 
@@ -568,22 +562,37 @@ if (response.action === "demote") {
 
                 }
 
-                
-                await executeClientAction({
+                const handledActions = [
+                    "kick",
+                    "add",
+                    "promote",
+                    "demote",
+                    "recover_view_once"
+                ];
 
-    action: response.action,
+                if (!handledActions.includes(response.action)) {
 
-    reply: response.reply,
+    await executeClientAction({
+        action: response.action,
+        reply: response.reply,
+        sock,
+        jid,
+        msg,
+        sender
+    });
 
-    sock,
+}
 
-    jid,
+if (replyText) {
 
-    msg,
+    await sock.sendMessage(jid, {
+        text: replyText,
+        mentions: replyMentions
+    });
 
-    sender
+    console.log(chalk.green("✅ Reply sent"));
 
-});
+}
 
             } catch (error) {
 
@@ -602,4 +611,5 @@ if (response.action === "demote") {
 }
 
 start();
-                        
+
+    
