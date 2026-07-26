@@ -29,9 +29,7 @@ export async function executeClientAction({
             case "audio":
 
                 await sock.sendMessage(jid, {
-                    audio: {
-                        url: reply.url
-                    },
+                    audio: { url: reply.url },
                     mimetype: reply.mimetype,
                     fileName: reply.fileName,
                     caption: reply.caption
@@ -42,9 +40,7 @@ export async function executeClientAction({
             case "video":
 
                 await sock.sendMessage(jid, {
-                    video: {
-                        url: reply.url
-                    },
+                    video: { url: reply.url },
                     mimetype: reply.mimetype,
                     fileName: reply.fileName,
                     caption: reply.caption
@@ -55,9 +51,7 @@ export async function executeClientAction({
             case "image":
 
                 await sock.sendMessage(jid, {
-                    image: {
-                        url: reply.url
-                    },
+                    image: { url: reply.url },
                     caption: reply.caption
                 });
 
@@ -66,9 +60,7 @@ export async function executeClientAction({
             case "document":
 
                 await sock.sendMessage(jid, {
-                    document: {
-                        url: reply.url
-                    },
+                    document: { url: reply.url },
                     fileName: reply.fileName,
                     mimetype: reply.mimetype
                 });
@@ -78,9 +70,7 @@ export async function executeClientAction({
             case "sticker":
 
                 await sock.sendMessage(jid, {
-                    sticker: {
-                        url: reply.url
-                    }
+                    sticker: { url: reply.url }
                 });
 
                 return true;
@@ -98,25 +88,21 @@ export async function executeClientAction({
     }
 
     // ==========================
-    // Existing Client Actions
+    // Actions already handled in index.js
     // ==========================
 
     switch (action) {
 
         case "recover_view_once":
-            break;
-
         case "kick":
-            break;
-
+        case "add":
         case "promote":
-            break;
+        case "demote":
+            return true;
 
         default:
             return false;
 
     }
-
-    return true;
 
 }
