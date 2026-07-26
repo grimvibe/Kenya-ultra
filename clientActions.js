@@ -77,6 +77,28 @@ export async function executeClientAction({
 
                 }
 
+                if (reply.contact) {
+
+                    const vcard =
+`BEGIN:VCARD
+VERSION:3.0
+FN:${reply.contact.displayName}
+TEL;type=CELL;type=VOICE;waid=${reply.contact.phone}:${reply.contact.phone}
+END:VCARD`;
+
+                    await sock.sendMessage(jid, {
+                        contacts: {
+                            displayName: reply.contact.displayName,
+                            contacts: [
+                                {
+                                    vcard
+                                }
+                            ]
+                        }
+                    });
+
+                }
+
                 return true;
             }
 
