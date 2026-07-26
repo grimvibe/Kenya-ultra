@@ -1,4 +1,6 @@
 import chalk from "chalk";
+import fs from "fs";
+import path from "path";
 
 export async function executeClientAction({
     action,
@@ -48,14 +50,35 @@ export async function executeClientAction({
 
                 return true;
 
-            case "image":
+            case "image": {
 
-                await sock.sendMessage(jid, {
-                    image: { url: reply.url },
-                    caption: reply.caption
-                });
+                if (reply.file) {
+
+                    const imagePath = path.join(
+                        process.cwd(),
+                        "assets",
+                        "images",
+                        reply.file
+                    );
+
+                    await sock.sendMessage(jid, {
+                        image: fs.readFileSync(imagePath),
+                        caption: reply.caption
+                    });
+
+                } else {
+
+                    await sock.sendMessage(jid, {
+                        image: {
+                            url: reply.url
+                        },
+                        caption: reply.caption
+                    });
+
+                }
 
                 return true;
+            }
 
             case "document":
 
