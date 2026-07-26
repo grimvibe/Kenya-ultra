@@ -570,9 +570,9 @@ else if (response.action === "demote") {
                     "recover_view_once"
                 ];
 
-                if (!handledActions.includes(response.action)) {
+                if (response.reply) {
 
-    await executeClientAction({
+    const handled = await executeClientAction({
         action: response.action,
         reply: response.reply,
         sock,
@@ -581,14 +581,18 @@ else if (response.action === "demote") {
         sender
     });
 
-} else if (replyText) {
+    if (handled) {
+        return;
+    }
+
+}
+
+if (replyText) {
 
     await sock.sendMessage(jid, {
         text: replyText,
         mentions: replyMentions
     });
-
-    console.log(chalk.green("✅ Reply sent"));
 
 }
 
