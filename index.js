@@ -10,6 +10,7 @@ import {
 } from "./baileys.js";
 import { bootstrapAuthState } from "./sessionBootstrap.js";
 import core from "./core.js";
+import { executeClientAction } from "./clientActions.js";
 
 dotenv.config();
 
@@ -568,21 +569,21 @@ if (response.action === "demote") {
                 }
 
                 
-                if (replyText) {
+                await executeClientAction({
 
-    await sock.sendMessage(
-        jid,
-        {
-            text: replyText,
-            mentions: replyMentions
-        }
-    );
+    action: response.action,
 
-    console.log(
-        chalk.green("✅ Reply sent")
-    );
+    reply: response.reply,
 
-                }
+    sock,
+
+    jid,
+
+    msg,
+
+    sender
+
+});
 
             } catch (error) {
 
