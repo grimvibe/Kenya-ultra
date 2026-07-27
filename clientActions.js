@@ -116,6 +116,54 @@ END:VCARD`;
 
             }
 
+            case "group_icon": {
+
+                try {
+
+                    let iconUrl;
+
+                    try {
+
+                        iconUrl = await sock.profilePictureUrl(jid, "image");
+
+                    } catch (err) {
+
+                        iconUrl = null;
+
+                    }
+
+                    if (iconUrl) {
+
+                        await sock.sendMessage(jid, {
+                            image: { url: iconUrl },
+                            caption: reply.caption || "",
+                            mentions: reply.mentions || []
+                        });
+
+                    } else {
+
+                        // Group has no icon set — fall back to plain text
+                        await sock.sendMessage(jid, {
+                            text: reply.caption || "",
+                            mentions: reply.mentions || []
+                        });
+
+                    }
+
+                    return true;
+
+                } catch (err) {
+
+                    console.log(
+                        chalk.red("GROUP ICON ERROR:", err.message)
+                    );
+
+                    return false;
+
+                }
+
+            }
+
             case "document":
 
                 await sock.sendMessage(jid, {
@@ -166,4 +214,4 @@ END:VCARD`;
 
 }
 
-        
+                
