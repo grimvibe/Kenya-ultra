@@ -294,7 +294,63 @@ isBotAdmin = groupMetadata.participants.some(
 
                 }
 
-               const response = await core.execute(
+               // ==============================
+// Automatic Loading UI
+// ==============================
+
+let loadingMessage = null;
+
+const commandName = text
+    .slice(PREFIX.length)
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase();
+
+const loadingCommands = [
+    "ytmp3",
+    "ytmp4",
+    "play",
+    "video",
+    "tiktok",
+    "facebook",
+    "fb",
+    "instagram",
+    "ig",
+    "spotify",
+    "mediafire"
+];
+
+if (loadingCommands.includes(commandName)) {
+
+    await sock.sendMessage(jid, {
+        react: {
+            text: "⏳",
+            key: msg.key
+        }
+    });
+
+    loadingMessage = await sock.sendMessage(jid, {
+        text:
+`╭━━━〔 ⚡ Kenya-Ultra 〕━━━⬣
+
+⏳ Processing your request...
+
+━━━━━━━━━━━━━━
+
+🔍 Searching...
+📥 Downloading...
+📦 Preparing file...
+
+Please wait...
+
+━━━━━━━━━━━━━━`
+    });
+
+}
+
+// Execute command
+
+const response = await core.execute(
     SESSION_ID,
     {
         text,
@@ -305,10 +361,30 @@ isBotAdmin = groupMetadata.participants.some(
         isAdmin,
         isBotAdmin,
         groupMetadata,
-        message: msg.message,
-        rawMessage: msg,
+        message: msg.message
     }
 );
+
+// Remove loading message
+
+if (loadingMessage) {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            delete: loadingMessage.key
+        });
+
+        await sock.sendMessage(jid, {
+            react: {
+                text: "✅",
+                key: msg.key
+            }
+        });
+
+    } catch {}
+
+}
 
                 console.log(
     chalk.cyan("📤 Core response:")
@@ -597,6 +673,17 @@ if (replyText) {
                     )
                 );
 
+                try {
+
+                    await sock.sendMessage(jid, {
+                        react: {
+                            text: "❌",
+                            key: msg.key
+                        }
+                    });
+
+                } catch {}
+
             }
 
         }
@@ -607,4 +694,4 @@ if (replyText) {
 start();
 
 
-            
+                
