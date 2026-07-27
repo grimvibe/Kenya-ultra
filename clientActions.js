@@ -31,9 +31,9 @@ export async function executeClientAction({
 
     switch (reply.type) {
 
-        // =========================================
+        // ==========================
         // TEXT
-        // =========================================
+        // ==========================
 
         case "text": {
 
@@ -46,15 +46,15 @@ export async function executeClientAction({
 
         }
 
-        // =========================================
-        // AUDIO (Premium Downloader)
-        // =========================================
+        // ==========================
+        // PREMIUM DOWNLOAD
+        // ==========================
 
-        case "audio": {
+        case "download": {
 
             try {
 
-                // Processing reaction
+                // Processing
                 await sock.sendMessage(jid, {
                     react: {
                         text: "⏳",
@@ -72,81 +72,112 @@ export async function executeClientAction({
                         },
 
                         caption:
-`╭━━━〔 🎵 Kenya-Ultra Downloader 〕━━━⬣
+`╭━━━〔 📥 Kenya-Ultra Downloader 〕━━━⬣
 
-🎼 *Title*
-${reply.title || "Unknown"}
-
-🌐 *Source*
-${reply.source || "YouTube"}
-
-⏱️ *Duration*
-${reply.duration || "Unknown"}
-
-📦 *Size*
-${reply.size || "Unknown"}
+🎵 *Title*
+${reply.title}
 
 ━━━━━━━━━━━━━━
 
-⬇ Downloading audio...
+🌐 Source : ${reply.source}
+📦 Size : ${reply.size}
+⏱ Duration : ${reply.duration}
 
-⚡ Powered by Kenya-Ultra 💚`
+━━━━━━━━━━━━━━
+
+⬇ Downloading...
+
+⚡ Kenya-Ultra`
 
                     });
 
                 }
 
-                // Download reaction
                 await sock.sendMessage(jid, {
+
                     react: {
                         text: "⬇️",
                         key: msg.key
                     }
-                });
-
-                // Send Audio
-                await sock.sendMessage(jid, {
-
-                    audio: {
-                        url: reply.url
-                    },
-
-                    mimetype:
-                        reply.mimetype || "audio/mpeg",
-
-                    fileName:
-                        reply.fileName ||
-
-                        `${reply.title || "audio"}.mp3`,
-
-                    ptt: false
 
                 });
 
-                // Success reaction
+                // AUDIO
+                if (reply.mediaType === "audio") {
+
+                    await sock.sendMessage(jid, {
+
+                        audio: {
+                            url: reply.url
+                        },
+
+                        mimetype:
+                            reply.mimetype ||
+
+                            "audio/mpeg",
+
+                        fileName:
+                            reply.fileName,
+
+                        ptt: false
+
+                    });
+
+                }
+
+                // VIDEO
+                else {
+
+                    await sock.sendMessage(jid, {
+
+                        video: {
+                            url: reply.url
+                        },
+
+                        mimetype:
+                            reply.mimetype ||
+
+                            "video/mp4",
+
+                        fileName:
+                            reply.fileName,
+
+                        caption:
+                            `🎬 ${reply.title}`
+
+                    });
+
+                }
+
                 await sock.sendMessage(jid, {
+
                     react: {
                         text: "✅",
                         key: msg.key
                     }
+
                 });
 
                 return true;
 
-            } catch (err) {
+            }
+
+            catch (err) {
 
                 console.log(
                     chalk.red(
-                        "AUDIO ERROR:",
+                        "DOWNLOAD ERROR:",
                         err.message
                     )
                 );
 
                 await sock.sendMessage(jid, {
+
                     react: {
                         text: "❌",
                         key: msg.key
                     }
+
                 });
 
                 return false;
@@ -155,9 +186,36 @@ ${reply.size || "Unknown"}
 
         }
 
-        // =========================================
+        // ==========================
+        // AUDIO
+        // ==========================
+
+        case "audio": {
+
+            await sock.sendMessage(jid, {
+
+                audio: {
+                    url: reply.url
+                },
+
+                mimetype:
+                    reply.mimetype,
+
+                fileName:
+                    reply.fileName,
+
+                caption:
+                    reply.caption
+
+            });
+
+            return true;
+
+        }
+
+        // ==========================
         // VIDEO
-        // =========================================
+        // ==========================
 
         case "video": {
 
@@ -180,11 +238,10 @@ ${reply.size || "Unknown"}
 
             return true;
 
-        }
-
-        // =========================================
+                        }
+                   // ==========================
         // IMAGE
-        // =========================================
+        // ==========================
 
         case "image": {
 
@@ -195,22 +252,15 @@ ${reply.size || "Unknown"}
                 if (reply.file) {
 
                     const imagePath = path.join(
-
                         process.cwd(),
-
                         "assets",
-
                         "images",
-
                         reply.file
-
                     );
 
                     image = fs.readFileSync(imagePath);
 
-                }
-
-                else {
+                } else {
 
                     image = {
                         url: reply.url
@@ -222,8 +272,9 @@ ${reply.size || "Unknown"}
 
                     image,
 
-                    caption:
-                        reply.caption || ""
+                    caption: reply.caption || "",
+
+                    mentions: reply.mentions || []
 
                 });
 
@@ -247,11 +298,9 @@ END:VCARD`;
                                 reply.contact.displayName,
 
                             contacts: [
-
                                 {
                                     vcard
                                 }
-
                             ]
 
                         }
@@ -279,9 +328,9 @@ END:VCARD`;
 
         }
 
-        // =========================================
+        // ==========================
         // GROUP ICON
-        // =========================================
+        // ==========================
 
         case "group_icon": {
 
@@ -356,9 +405,9 @@ END:VCARD`;
 
         }
 
-        // =========================================
+        // ==========================
         // DOCUMENT
-        // =========================================
+        // ==========================
 
         case "document": {
 
@@ -380,9 +429,9 @@ END:VCARD`;
 
         }
 
-        // =========================================
+        // ==========================
         // STICKER
-        // =========================================
+        // ==========================
 
         case "sticker": {
 
@@ -401,17 +450,13 @@ END:VCARD`;
         default:
 
             console.log(
-
                 chalk.yellow(
-
                     `⚠ Unknown reply type: ${reply.type}`
-
                 )
-
             );
 
             return false;
 
     }
 
-                        }
+                        } 
