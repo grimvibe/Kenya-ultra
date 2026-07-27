@@ -2,7 +2,7 @@ import axios from "axios";
 
 const CORE_URL =
     process.env.CORE_URL ||
-    "http://kenya-ultra-panel.duckdns.org:3001";
+    "https://kenya-ultra-core-git-900495233478.europe-west1.run.app/";
 
 class KenyaUltraCore {
 
