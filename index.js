@@ -365,15 +365,11 @@ const response = await core.execute(
     }
 );
 
-// Remove loading message
+// Mark loading as complete
 
 if (loadingMessage) {
 
     try {
-
-        await sock.sendMessage(jid, {
-            delete: loadingMessage.key
-        });
 
         await sock.sendMessage(jid, {
             react: {
@@ -694,4 +690,4 @@ if (replyText) {
 start();
 
 
-                
+    
