@@ -23,7 +23,8 @@ export async function executeClientAction({
 
                 await sock.sendMessage(jid, {
                     text: reply.text,
-                    mentions: reply.mentions || []
+                    mentions: reply.mentions || [],
+                    contextInfo: reply.contextInfo || undefined
                 });
 
                 return true;
@@ -88,7 +89,8 @@ export async function executeClientAction({
 
                     await sock.sendMessage(jid, {
                         image,
-                        caption: reply.caption || ""
+                        caption: reply.caption || "",
+                        contextInfo: reply.contextInfo || undefined
                     });
 
                     if (reply.contact) {
@@ -225,4 +227,5 @@ END:VCARD`;
 
 }
 
-        
+
+                            
