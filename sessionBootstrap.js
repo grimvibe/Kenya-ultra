@@ -5,67 +5,110 @@ import core from "./core.js";
 
 const AUTH_FOLDER = path.join(process.cwd(), "auth_info");
 
-/**
- * Auth data that passes through JSON (Redis storage on Core, then
- * an HTTP response) has every Buffer flattened into a plain object
- * like { type: "Buffer", data: [1,2,3,...] } — Node does this
- * automatically. Baileys needs real Buffer instances, not that
- * shape, so we round-trip through BufferJSON's reviver to restore
- * them before touching the auth state.
- */
 function restoreBuffers(value) {
-    return JSON.parse(JSON.stringify(value), BufferJSON.reviver);
+
+    if (!value) return value;
+
+    return JSON.parse(
+        JSON.stringify(value),
+        BufferJSON.reviver
+    );
+
 }
 
-/**
- * Core is stateless — the SESSION_ID *is* the credentials (compressed
- * + base64). There's nothing on Core to keep syncing to, so instead
- * we decode it once, seed a local auth_info/ folder with it, and let
- * Baileys' own useMultiFileAuthState take over from there for every
- * future run. If auth_info/ already has a session (e.g. this is a
- * restart, not a first boot), we skip Core entirely and just reuse it.
- */
 export async function bootstrapAuthState(sessionId) {
 
-    const credsPath = path.join(AUTH_FOLDER, "creds.json");
-    const alreadyLinked = fs.existsSync(credsPath);
+    const credsPath =
+        path.join(AUTH_FOLDER, "creds.json");
 
-    fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+    const alreadyLinked =
+        fs.existsSync(credsPath);
 
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+    fs.mkdirSync(
+        AUTH_FOLDER,
+        { recursive: true }
+    );
+
+    const {
+        state,
+        saveCreds
+    } = await useMultiFileAuthState(AUTH_FOLDER);
 
     if (!alreadyLinked) {
 
-        console.log("📥 No local session found — fetching from Core...");
+        console.log(
+            "📥 Fetching session from Kenya-Ultra Core..."
+        );
 
-        const validation = await core.validate(sessionId);
+        const validation =
+            await core.validate(sessionId);
 
         if (!validation.success) {
-            throw new Error(validation.message || "Invalid SESSION_ID.");
+
+            throw new Error(
+                validation.message ||
+                "Invalid SESSION_ID."
+            );
+
         }
 
-        // Seed local state with what Core sent — restoring real
-        // Buffer objects first, since they arrived as plain JSON.
-        const restoredCreds = restoreBuffers(validation.auth.creds);
-        Object.assign(state.creds, restoredCreds);
+        if (!validation.auth?.creds) {
 
-        // Older SESSION_IDs may only contain creds — guard against
-        // missing keys rather than throwing.
-        if (validation.auth.keys) {
-            const restoredKeys = restoreBuffers(validation.auth.keys);
-            await state.keys.set(restoredKeys);
+            throw new Error(
+                "Core returned invalid auth data."
+            );
+
+        }
+
+        // Restore credentials
+        Object.assign(
+            state.creds,
+            restoreBuffers(validation.auth.creds)
+        );
+
+        // Restore signal keys safely
+        if (
+            validation.auth.keys &&
+            typeof validation.auth.keys === "object"
+        ) {
+
+            const restored =
+                restoreBuffers(validation.auth.keys);
+
+            for (const category of Object.keys(restored)) {
+
+                if (
+                    restored[category] &&
+                    typeof restored[category] === "object"
+                ) {
+
+                    await state.keys.set({
+                        [category]: restored[category]
+                    });
+
+                }
+
+            }
+
         }
 
         await saveCreds();
 
-        console.log("✅ Local session initialized from Core.");
+        console.log(
+            "✅ Session restored successfully."
+        );
 
     } else {
 
-        console.log("📂 Using existing local session — Core not contacted.");
+        console.log(
+            "📂 Using existing auth_info session."
+        );
 
     }
 
-    return { state, saveCreds };
+    return {
+        state,
+        saveCreds
+    };
 
 }
