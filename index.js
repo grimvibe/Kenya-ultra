@@ -275,14 +275,16 @@ if (heartbeat) {
                 let isAdmin = false;
                 let isBotAdmin = false;
 
-                if (jid.endsWith("@g.us")) {
+                const botIds = [
+                    sock.user.id.split(":")[0] + "@s.whatsapp.net",
+                    sock.user.lid.split(":")[0] + "@lid"
+                ];
+
+                const isGroup = jid.endsWith("@g.us");
+
+                if (isGroup) {
 
                     groupMetadata = await sock.groupMetadata(jid);
-
-                    const botIds = [
-    sock.user.id.split(":")[0] + "@s.whatsapp.net",
-    sock.user.lid.split(":")[0] + "@lid"
-];
 
 isAdmin = groupMetadata.participants.some(
     p => p.id === sender && p.admin
@@ -357,11 +359,12 @@ const response = await core.execute(
         sender,
         chat: jid,
         pushName: msg.pushName || "",
-        isGroup: jid.endsWith("@g.us"),
+        isGroup,
         isAdmin,
         isBotAdmin,
         groupMetadata,
-        message: msg.message
+        message: msg.message,
+        botIds
     }
 );
 
@@ -689,5 +692,4 @@ if (replyText) {
 
 start();
 
-
-    
+            
