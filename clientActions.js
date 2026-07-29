@@ -23,8 +23,7 @@ export async function executeClientAction({
 
                 await sock.sendMessage(jid, {
                     text: reply.text,
-                    mentions: reply.mentions || [],
-                    contextInfo: reply.contextInfo || undefined
+                    mentions: reply.mentions || []
                 });
 
                 return true;
@@ -57,8 +56,19 @@ export async function executeClientAction({
                     video: { url: reply.url },
                     mimetype: reply.mimetype,
                     fileName: reply.fileName,
-                    caption: reply.caption
+                    caption: reply.caption,
+                    contextInfo: reply.contextInfo || undefined
                 });
+
+                if (reply.alsoDocument) {
+
+                    await sock.sendMessage(jid, {
+                        document: { url: reply.url },
+                        mimetype: reply.mimetype,
+                        fileName: reply.fileName
+                    });
+
+                }
 
                 return true;
 
@@ -89,8 +99,7 @@ export async function executeClientAction({
 
                     await sock.sendMessage(jid, {
                         image,
-                        caption: reply.caption || "",
-                        contextInfo: reply.contextInfo || undefined
+                        caption: reply.caption || ""
                     });
 
                     if (reply.contact) {
@@ -177,6 +186,71 @@ END:VCARD`;
 
             }
 
+            case "download": {
+
+                try {
+
+                    const isAudio = reply.mediaType === "audio";
+
+                    const caption =
+`${isAudio ? "🎵" : "🎬"} *${reply.title || "Download"}*
+
+📡 ${reply.source || "Unknown source"} | ⏱ ${reply.duration || "Unknown"} | 💾 ${reply.size || "Unknown"}
+
+━━━━━━━━━━━━━━
+
+✅ Download Complete
+
+🐺 Powered by Kenya-Ultra 👑`;
+
+                    const contextInfo = reply.thumbnail ? {
+                        externalAdReply: {
+                            title: reply.title || "Kenya-Ultra",
+                            body: `${reply.source || "Kenya-Ultra"} • ${reply.duration || ""}`,
+                            thumbnailUrl: reply.thumbnail,
+                            sourceUrl: reply.url,
+                            mediaType: 1,
+                            renderLargerThumbnail: true,
+                            showAdAttribution: false
+                        }
+                    } : undefined;
+
+                    if (isAudio) {
+
+                        await sock.sendMessage(jid, {
+                            audio: { url: reply.url },
+                            mimetype: reply.mimetype || "audio/mpeg",
+                            fileName: reply.fileName || "audio.mp3",
+                            caption,
+                            contextInfo
+                        });
+
+                    } else {
+
+                        await sock.sendMessage(jid, {
+                            video: { url: reply.url },
+                            mimetype: reply.mimetype || "video/mp4",
+                            fileName: reply.fileName || "video.mp4",
+                            caption,
+                            contextInfo
+                        });
+
+                    }
+
+                    return true;
+
+                } catch (err) {
+
+                    console.log(
+                        chalk.red("DOWNLOAD ERROR:", err.message)
+                    );
+
+                    return false;
+
+                }
+
+            }
+
             case "document":
 
                 await sock.sendMessage(jid, {
@@ -227,5 +301,3 @@ END:VCARD`;
 
 }
 
-
-                            
