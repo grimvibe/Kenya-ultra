@@ -39,6 +39,35 @@ class KenyaUltraCore {
 
     }
 
+    async getSettings(sessionId) {
+
+        try {
+
+            const { data } = await axios.get(
+                `${CORE_URL}/settings/${sessionId}`
+            );
+
+            return {
+                prefix: data.prefix || ".",
+                mode: data.mode || "public"
+            };
+
+        } catch (error) {
+
+            console.log(
+                "Failed to fetch bot settings, using defaults:",
+                error.response?.data?.message || error.message
+            );
+
+            return {
+                prefix: ".",
+                mode: "public"
+            };
+
+        }
+
+    }
+
     async execute(sessionId, message) {
 
         try {
