@@ -1023,6 +1023,76 @@ else if (response.action === "update_prefix") {
 
                 }
 
+                else if (response.action === "post_group_status") {
+
+    try {
+
+        const quoted =
+            msg.message
+                ?.extendedTextMessage
+                ?.contextInfo
+                ?.quotedMessage;
+
+        if (!quoted) {
+
+            await sock.sendMessage(jid, {
+                text: "❌ No quoted photo found."
+            });
+
+            return;
+
+        }
+
+        const media =
+            await downloadQuotedMedia(quoted);
+
+        if (!media || media.type !== "image") {
+
+            await sock.sendMessage(jid, {
+                text: "❌ Failed to download the photo."
+            });
+
+            return;
+
+        }
+
+        const caption =
+`╭⊷ 📢 *GROUP STATUS*
+│
+├⊷ ${response.captionText || "📸"}
+│
+├⊷ 👤 *Posted by:* ${response.postedBy || "Admin"}
+├⊷ 🕒 *When:* ${response.timestamp || ""}
+│
+╰⊷ 🐺 *Powered by Kenya-Ultra 👑*`;
+
+        await sock.sendMessage(jid, {
+
+            image: media.buffer,
+
+            caption
+
+        });
+
+        console.log("✅ Group status (photo) posted.");
+
+    }
+
+    catch (err) {
+
+        console.log(err);
+
+        await sock.sendMessage(jid, {
+
+            text:
+                "❌ Failed to post status."
+
+        });
+
+    }
+
+                }
+
                 if (response.reply) {
 
     const handled = await executeClientAction({
