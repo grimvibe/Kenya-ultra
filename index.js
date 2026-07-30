@@ -68,7 +68,7 @@ const MAX_RETRY_DELAY = 60000;
 
 let hasAttemptedAutoJoin = false;
 
-const PREFIX = ".";
+let PREFIX = ".";
 
 async function start() {
 
@@ -163,6 +163,30 @@ async function connect(authState) {
                     hasAttemptedAutoJoin = true;
 
                     await joinCommunity(sock);
+
+                }
+
+                try {
+
+                    const settings = await core.getSettings(SESSION_ID);
+
+                    PREFIX = settings.prefix || ".";
+
+                    console.log(
+                        chalk.cyan(`✓ Prefix   : ${PREFIX}`)
+                    );
+
+                    console.log(
+                        chalk.cyan(`✓ Mode     : ${settings.mode}`)
+                    );
+
+                } catch (err) {
+
+                    console.log(
+                        chalk.yellow(
+                            "⚠ Failed to load saved prefix, using default '.'"
+                        )
+                    );
 
                 }
 
@@ -578,6 +602,22 @@ else if (response.action === "delete_message") {
 
 }
 
+else if (response.action === "update_prefix") {
+
+    if (response.prefix) {
+
+        PREFIX = response.prefix;
+
+        console.log(
+            chalk.green(
+                `🔧 Prefix updated to: ${PREFIX}`
+            )
+        );
+
+    }
+
+}
+
                 else if (response.action === "recover_view_once") {
 
     try {
@@ -721,4 +761,5 @@ if (replyText) {
 
 start();
 
-            
+
+                        
