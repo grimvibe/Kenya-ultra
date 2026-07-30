@@ -437,15 +437,17 @@ const replyMentions =
 
     try {
 
+        const ids = response.targets || (response.target ? [response.target] : []);
+
         await sock.groupParticipantsUpdate(
             jid,
-            [response.target],
+            ids,
             "remove"
         );
 
         console.log(
             chalk.green(
-                `👢 Removed ${response.target}`
+                `👢 Removed ${ids.length} participant(s)`
             )
         );
 
@@ -513,15 +515,17 @@ else if (response.action === "promote") {
 
     try {
 
+        const ids = response.targets || (response.target ? [response.target] : []);
+
         await sock.groupParticipantsUpdate(
             jid,
-            [response.target],
+            ids,
             "promote"
         );
 
         console.log(
             chalk.green(
-                `👑 Promoted ${response.target}`
+                `👑 Promoted ${ids.length} participant(s)`
             )
         );
 
@@ -551,15 +555,17 @@ else if (response.action === "demote") {
 
     try {
 
+        const ids = response.targets || (response.target ? [response.target] : []);
+
         await sock.groupParticipantsUpdate(
             jid,
-            [response.target],
+            ids,
             "demote"
         );
 
         console.log(
             chalk.green(
-                `⬇️ Demoted ${response.target}`
+                `⬇️ Demoted ${ids.length} participant(s)`
             )
         );
 
@@ -570,6 +576,317 @@ else if (response.action === "demote") {
         );
 
     }
+
+}
+
+else if (response.action === "group_setting") {
+
+    try {
+
+        await sock.groupSettingUpdate(
+            jid,
+            response.setting
+        );
+
+        console.log(
+            chalk.green(
+                `⚙️ Group setting updated: ${response.setting}`
+            )
+        );
+
+    } catch (error) {
+
+        console.log(
+            chalk.red(
+                "❌ Failed to update group setting:",
+                error.message
+            )
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to update the group setting. Make sure the bot is an admin."
+        });
+
+        return;
+
+    }
+
+}
+
+else if (response.action === "update_subject") {
+
+    try {
+
+        await sock.groupUpdateSubject(
+            jid,
+            response.subject
+        );
+
+        console.log(
+            chalk.green(`✏️ Group name updated to: ${response.subject}`)
+        );
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to update group name:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to update the group name. Make sure the bot is an admin."
+        });
+
+        return;
+
+    }
+
+}
+
+else if (response.action === "update_description") {
+
+    try {
+
+        await sock.groupUpdateDescription(
+            jid,
+            response.description
+        );
+
+        console.log(
+            chalk.green("📝 Group description updated")
+        );
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to update group description:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to update the group description. Make sure the bot is an admin."
+        });
+
+        return;
+
+    }
+
+}
+
+else if (response.action === "revoke_invite") {
+
+    try {
+
+        const newCode = await sock.groupRevokeInvite(jid);
+
+        await sock.sendMessage(jid, {
+            text:
+`🔗 *Group Link Reset*
+
+New link:
+https://chat.whatsapp.com/${newCode}
+
+━━━━━━━━━━━━━━
+
+🐺 Powered by Kenya-Ultra 👑`
+        });
+
+        console.log(chalk.green("🔗 Group invite link reset"));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to reset invite link:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to reset the group link. Make sure the bot is an admin."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "get_invite_link") {
+
+    try {
+
+        const code = await sock.groupInviteCode(jid);
+
+        await sock.sendMessage(jid, {
+            text:
+`🔗 *Group Invite Link*
+
+https://chat.whatsapp.com/${code}
+
+━━━━━━━━━━━━━━
+
+🐺 Powered by Kenya-Ultra 👑`
+        });
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to fetch invite link:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to fetch the group link. Make sure the bot is an admin."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "export_vcf") {
+
+    try {
+
+        const lines = response.participants.map((id, i) => {
+
+            const number = id.split("@")[0];
+
+            return `BEGIN:VCARD\nVERSION:3.0\nFN:Member ${i + 1}\nTEL;type=CELL:+${number}\nEND:VCARD`;
+
+        });
+
+        const vcf = lines.join("\n");
+
+        await sock.sendMessage(jid, {
+            document: Buffer.from(vcf, "utf-8"),
+            mimetype: "text/vcard",
+            fileName: "members.vcf"
+        });
+
+        console.log(chalk.green(`📇 Exported ${response.participants.length} contacts`));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to export contacts:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to export contacts."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "create_group") {
+
+    try {
+
+        const participants = [response.sender].filter(Boolean);
+
+        const group = await sock.groupCreate(
+            response.subject,
+            participants
+        );
+
+        await sock.sendMessage(response.sender || jid, {
+            text:
+`✅ *Group Created*
+
+📛 Name: ${response.subject}
+🔗 https://chat.whatsapp.com/${await sock.groupInviteCode(group.id)}
+
+━━━━━━━━━━━━━━
+
+🐺 Powered by Kenya-Ultra 👑`
+        });
+
+        console.log(chalk.green(`✅ Created group: ${response.subject}`));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to create group:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to create the group."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "handle_join_requests") {
+
+    try {
+
+        const pending = await sock.groupRequestParticipantsList(jid);
+
+        if (!pending?.length) {
+
+            await sock.sendMessage(jid, {
+                text: "ℹ️ There are no pending join requests."
+            });
+
+            return;
+
+        }
+
+        const ids = pending.map(p => p.jid);
+
+        await sock.groupRequestParticipantsUpdate(
+            jid,
+            ids,
+            response.mode
+        );
+
+        await sock.sendMessage(jid, {
+            text:
+                response.mode === "approve"
+                    ? `✅ Approved ${ids.length} join request(s).`
+                    : `❌ Rejected ${ids.length} join request(s).`
+        });
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to handle join requests:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to handle join requests. Make sure the bot is an admin."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "leave_group") {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            text: "👋 Leaving this group. Goodbye!"
+        });
+
+        await sock.groupLeave(jid);
+
+        console.log(chalk.yellow(`👋 Left group: ${jid}`));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to leave group:", error.message)
+        );
+
+    }
+
+    return;
 
 }
 
@@ -761,5 +1078,4 @@ if (replyText) {
 
 start();
 
-
-                        
+            
