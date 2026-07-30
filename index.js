@@ -549,6 +549,35 @@ else if (response.action === "demote") {
 
 }
 
+else if (response.action === "delete_message") {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            delete: msg.key
+        });
+
+        console.log(
+            chalk.yellow(
+                `🔇 Deleted message from muted user ${sender}`
+            )
+        );
+
+    } catch (error) {
+
+        console.log(
+            chalk.red(
+                "❌ Failed to delete muted user's message:",
+                error.message
+            )
+        );
+
+    }
+
+    return;
+
+}
+
                 else if (response.action === "recover_view_once") {
 
     try {

@@ -292,6 +292,7 @@ END:VCARD`;
         case "add":
         case "promote":
         case "demote":
+        case "delete_message":
             return true;
 
         default:
