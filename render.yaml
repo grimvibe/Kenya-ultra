@@ -1,5 +1,5 @@
 services:
-  - type: worker
+  - type: web
     name: kenya-ultra
     runtime: node
     plan: free
@@ -9,6 +9,8 @@ services:
     startCommand: npm start
 
     autoDeploy: true
+
+    healthCheckPath: /
 
     envVars:
       - key: SESSION_ID

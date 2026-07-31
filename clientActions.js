@@ -288,10 +288,7 @@ END:VCARD`;
     switch (action) {
 
         case "recover_view_once":
-        case "kick":
-        case "add":
-        case "promote":
-        case "demote":
+        case "delete_message":
             return true;
 
         default:

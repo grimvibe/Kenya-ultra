@@ -39,6 +39,55 @@ class KenyaUltraCore {
 
     }
 
+    async getSettings(sessionId) {
+
+        try {
+
+            const { data } = await axios.get(
+                `${CORE_URL}/settings/${sessionId}`
+            );
+
+            return {
+                prefix: data.prefix || ".",
+                mode: data.mode || "public"
+            };
+
+        } catch (error) {
+
+            console.log(
+                "Failed to fetch bot settings, using defaults:",
+                error.response?.data?.message || error.message
+            );
+
+            return {
+                prefix: ".",
+                mode: "public"
+            };
+
+        }
+
+    }
+
+    async syncAuth(sessionId, creds) {
+
+        try {
+
+            await axios.post(
+                `${CORE_URL}/sync-auth`,
+                { sessionId, creds }
+            );
+
+        } catch (error) {
+
+            console.log(
+                "⚠ Failed to sync auth creds to Core:",
+                error.response?.data?.message || error.message
+            );
+
+        }
+
+    }
+
     async execute(sessionId, message) {
 
         try {
