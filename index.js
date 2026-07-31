@@ -70,6 +70,28 @@ let hasAttemptedAutoJoin = false;
 
 let PREFIX = ".";
 
+// Tracks message keys the bot has sent per chat during this runtime,
+// so .delall can clean them up. Capped per chat to avoid unbounded growth.
+const recentBotMessages = new Map();
+
+function trackSentMessage(jid, sentMsg) {
+
+    if (!sentMsg?.key) return;
+
+    if (!recentBotMessages.has(jid)) {
+        recentBotMessages.set(jid, []);
+    }
+
+    const list = recentBotMessages.get(jid);
+
+    list.push(sentMsg.key);
+
+    if (list.length > 50) {
+        list.shift();
+    }
+
+}
+
 async function start() {
 
     try {
@@ -278,6 +300,19 @@ if (heartbeat) {
             const sender =
                 msg.key.participant || msg.key.remoteJid;
 
+            // Baileys 7.x LID migration: the same person can show up as
+            // either their phone-number JID (@s.whatsapp.net) or their
+            // LID (@lid) depending on how WhatsApp routed this specific
+            // message. `participantAlt`/`remoteJidAlt` gives the OTHER
+            // form of the same identity when WhatsApp knows it, so we
+            // track both to avoid treating one person as two people.
+            const senderAlt =
+                msg.key.participantAlt ||
+                msg.key.remoteJidAlt ||
+                null;
+
+            const senderIdentities = [sender, senderAlt].filter(Boolean);
+
             const text =
                 msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
@@ -311,7 +346,7 @@ if (heartbeat) {
                     groupMetadata = await sock.groupMetadata(jid);
 
 isAdmin = groupMetadata.participants.some(
-    p => p.id === sender && p.admin
+    p => senderIdentities.includes(p.id) && p.admin
 );
 
 isBotAdmin = groupMetadata.participants.some(
@@ -372,6 +407,8 @@ Please wait...
 ━━━━━━━━━━━━━━`
     });
 
+    trackSentMessage(jid, loadingMessage);
+
 }
 
 // Execute command
@@ -381,6 +418,7 @@ const response = await core.execute(
     {
         text,
         sender,
+        senderAlt,
         chat: jid,
         pushName: msg.pushName || "",
         isGroup,
@@ -472,7 +510,6 @@ const replyMentions =
     }
 
 }
-
 else if (response.action === "add") {
 
     try {
@@ -529,6 +566,28 @@ else if (response.action === "promote") {
             )
         );
 
+        if (response.revertAfterMs) {
+
+            setTimeout(async () => {
+
+                try {
+
+                    await sock.groupParticipantsUpdate(jid, ids, "demote");
+
+                    console.log(
+                        chalk.yellow(`⏱ Auto-reverted promotion for ${ids.length} participant(s)`)
+                    );
+
+                } catch (err) {
+
+                    console.log(chalk.red("❌ Failed to auto-revert promotion:", err.message));
+
+                }
+
+            }, response.revertAfterMs);
+
+        }
+
     } catch (error) {
 
         console.log(
@@ -569,6 +628,28 @@ else if (response.action === "demote") {
             )
         );
 
+        if (response.revertAfterMs) {
+
+            setTimeout(async () => {
+
+                try {
+
+                    await sock.groupParticipantsUpdate(jid, ids, "promote");
+
+                    console.log(
+                        chalk.yellow(`⏱ Auto-restored admin for ${ids.length} participant(s)`)
+                    );
+
+                } catch (err) {
+
+                    console.log(chalk.red("❌ Failed to auto-restore admin:", err.message));
+
+                }
+
+            }, response.revertAfterMs);
+
+        }
+
     } catch (error) {
 
         console.log(
@@ -593,6 +674,33 @@ else if (response.action === "group_setting") {
                 `⚙️ Group setting updated: ${response.setting}`
             )
         );
+
+        if (response.revertAfterMs) {
+
+            const reverted =
+                response.setting === "announcement"
+                    ? "not_announcement"
+                    : "announcement";
+
+            setTimeout(async () => {
+
+                try {
+
+                    await sock.groupSettingUpdate(jid, reverted);
+
+                    console.log(
+                        chalk.yellow(`⏱ Auto-reverted group setting to: ${reverted}`)
+                    );
+
+                } catch (err) {
+
+                    console.log(chalk.red("❌ Failed to auto-revert group setting:", err.message));
+
+                }
+
+            }, response.revertAfterMs);
+
+        }
 
     } catch (error) {
 
@@ -866,6 +974,137 @@ else if (response.action === "handle_join_requests") {
 
 }
 
+else if (response.action === "set_group_photo") {
+
+    try {
+
+        const quoted =
+            msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+        const media = quoted ? await downloadQuotedMedia(quoted) : null;
+
+        if (!media || media.type !== "image") {
+
+            await sock.sendMessage(jid, {
+                text: "❌ Reply to an image with .setppgc to use it as the group photo."
+            });
+
+            return;
+
+        }
+
+        await sock.updateProfilePicture(jid, media.buffer);
+
+        await sock.sendMessage(jid, {
+            text: "✅ Group photo updated."
+        });
+
+        console.log(chalk.green("🖼️ Group photo updated"));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to update group photo:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to update the group photo. Make sure the bot is an admin."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "remove_group_photo") {
+
+    try {
+
+        await sock.removeProfilePicture(jid);
+
+        await sock.sendMessage(jid, {
+            text: "✅ Group photo removed."
+        });
+
+        console.log(chalk.green("🗑️ Group photo removed"));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to remove group photo:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to remove the group photo. Make sure the bot is an admin."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "send_poll") {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            poll: {
+                name: response.question,
+                values: response.options,
+                selectableCount: response.selectableCount || 1
+            }
+        });
+
+        console.log(chalk.green(`📊 Poll sent: ${response.question}`));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to send poll:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to create the poll."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "delete_own_messages") {
+
+    try {
+
+        const keys = recentBotMessages.get(jid) || [];
+
+        for (const key of keys) {
+
+            try {
+                await sock.sendMessage(jid, { delete: key });
+            } catch {}
+
+        }
+
+        recentBotMessages.delete(jid);
+
+        console.log(chalk.yellow(`🧹 Cleared ${keys.length} bot message(s) in ${jid}`));
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Failed to clear bot messages:", error.message)
+        );
+
+    }
+
+    return;
+
+}
+
 else if (response.action === "leave_group") {
 
     try {
@@ -1023,76 +1262,6 @@ else if (response.action === "update_prefix") {
 
                 }
 
-                else if (response.action === "post_group_status") {
-
-    try {
-
-        const quoted =
-            msg.message
-                ?.extendedTextMessage
-                ?.contextInfo
-                ?.quotedMessage;
-
-        if (!quoted) {
-
-            await sock.sendMessage(jid, {
-                text: "❌ No quoted photo found."
-            });
-
-            return;
-
-        }
-
-        const media =
-            await downloadQuotedMedia(quoted);
-
-        if (!media || media.type !== "image") {
-
-            await sock.sendMessage(jid, {
-                text: "❌ Failed to download the photo."
-            });
-
-            return;
-
-        }
-
-        const caption =
-`╭⊷ 📢 *GROUP STATUS*
-│
-├⊷ ${response.captionText || "📸"}
-│
-├⊷ 👤 *Posted by:* ${response.postedBy || "Admin"}
-├⊷ 🕒 *When:* ${response.timestamp || ""}
-│
-╰⊷ 🐺 *Powered by Kenya-Ultra 👑*`;
-
-        await sock.sendMessage(jid, {
-
-            image: media.buffer,
-
-            caption
-
-        });
-
-        console.log("✅ Group status (photo) posted.");
-
-    }
-
-    catch (err) {
-
-        console.log(err);
-
-        await sock.sendMessage(jid, {
-
-            text:
-                "❌ Failed to post status."
-
-        });
-
-    }
-
-                }
-
                 if (response.reply) {
 
     const handled = await executeClientAction({
@@ -1112,10 +1281,12 @@ else if (response.action === "update_prefix") {
 
 if (replyText) {
 
-    await sock.sendMessage(jid, {
+    const sent = await sock.sendMessage(jid, {
         text: replyText,
         mentions: replyMentions
     });
+
+    trackSentMessage(jid, sent);
 
 }
 
