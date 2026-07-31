@@ -1129,6 +1129,33 @@ else if (response.action === "leave_group") {
 
 }
 
+else if (response.action === "get_profile_picture") {
+
+    try {
+
+        const ppUrl = await sock.profilePictureUrl(
+            response.target,
+            "image"
+        );
+
+        await sock.sendMessage(jid, {
+            image: { url: ppUrl },
+            caption: `🖼️ Profile picture of @${response.target.split("@")[0]}`,
+            mentions: [response.target]
+        });
+
+    } catch (error) {
+
+        await sock.sendMessage(jid, {
+            text: "❌ Couldn't get that profile picture — they may not have one, or their privacy settings block it."
+        });
+
+    }
+
+    return;
+
+}
+
 else if (response.action === "ping_probe") {
 
     try {
