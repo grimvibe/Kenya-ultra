@@ -16,6 +16,30 @@ function restoreBuffers(value) {
 
 }
 
+function validateCredentials(creds) {
+    /**
+     * Validates that all required credential fields are present
+     * Helps diagnose authentication issues early
+     */
+    const requiredFields = [
+        'registrationId',
+        'signedIdentityKey',
+        'signedPreKey',
+        'advSecretKey',
+        'noiseKey',
+        'pairingEphemeralKeyPair'
+    ];
+
+    const missingFields = requiredFields.filter(field => !creds[field]);
+
+    if (missingFields.length > 0) {
+        console.warn(`⚠️ Missing credential fields: ${missingFields.join(', ')}`);
+        return false;
+    }
+
+    return true;
+}
+
 export async function bootstrapAuthState(sessionId) {
 
     const credsPath =
@@ -61,10 +85,16 @@ export async function bootstrapAuthState(sessionId) {
         }
 
         // Restore credentials
-        Object.assign(
-            state.creds,
-            restoreBuffers(validation.auth.creds)
-        );
+        const restoredCreds = restoreBuffers(validation.auth.creds);
+        
+        // ✅ FIX: Validate credentials before assigning
+        if (!validateCredentials(restoredCreds)) {
+            throw new Error(
+                "Core returned incomplete credentials. Some required fields are missing."
+            );
+        }
+
+        Object.assign(state.creds, restoredCreds);
 
         // Restore signal keys safely
         if (
