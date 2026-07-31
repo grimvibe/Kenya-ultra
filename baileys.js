@@ -177,6 +177,12 @@ export async function downloadQuotedMedia(quoted) {
 
     }
 
+    // ✅ FIX: Validate chunks array before concat to prevent NaN buffer size error
+    if (!chunks || chunks.length === 0) {
+        console.warn("⚠️ No media chunks received from stream");
+        return null;
+    }
+
     return {
 
         type,
