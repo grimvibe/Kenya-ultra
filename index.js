@@ -1129,6 +1129,39 @@ else if (response.action === "leave_group") {
 
 }
 
+else if (response.action === "ping_probe") {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            react: { text: "🚀", key: msg.key }
+        });
+
+        const start = Date.now();
+
+        const { key } = await sock.sendMessage(jid, { text: "wait.." });
+
+        const done = Date.now() - start;
+
+        const pong =
+            `*Pong*:\n> ⏱️ ${done}ms (${Math.round(done / 100) / 10}s)`;
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        await sock.sendMessage(jid, { text: pong, edit: key });
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Ping probe failed:", error.message)
+        );
+
+    }
+
+    return;
+
+}
+
 else if (response.action === "delete_message") {
 
     try {
