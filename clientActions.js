@@ -78,7 +78,15 @@ export async function executeClientAction({
 
                     let image;
 
-                    if (reply.file) {
+                    if (reply.file && reply.file.startsWith("data:")) {
+
+                        // Base64 data URI — e.g. a level-up card
+                        // rendered on the fly by Core. Decode straight
+                        // to a Buffer, no disk involved.
+                        const base64 = reply.file.split(",")[1];
+                        image = Buffer.from(base64, "base64");
+
+                    } else if (reply.file) {
 
                         const imagePath = path.join(
                             process.cwd(),
@@ -99,7 +107,8 @@ export async function executeClientAction({
 
                     await sock.sendMessage(jid, {
                         image,
-                        caption: reply.caption || ""
+                        caption: reply.caption || "",
+                        mentions: reply.mentions || []
                     });
 
                     if (reply.contact) {

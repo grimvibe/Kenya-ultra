@@ -413,6 +413,20 @@ Please wait...
 
 // Execute command
 
+let ppUrl = null;
+
+try {
+
+    ppUrl = await sock.profilePictureUrl(sender, "image");
+
+} catch {
+
+    // No public profile picture, or privacy settings block it —
+    // expected for a lot of users, just fall back to no avatar.
+    ppUrl = null;
+
+}
+
 const response = await core.execute(
     SESSION_ID,
     {
@@ -421,6 +435,7 @@ const response = await core.execute(
         senderAlt,
         chat: jid,
         pushName: msg.pushName || "",
+        ppUrl,
         isGroup,
         isAdmin,
         isBotAdmin,
@@ -1333,6 +1348,29 @@ else if (response.action === "update_prefix") {
         sender
     });
 
+    if (response.levelUp) {
+
+        try {
+
+            await executeClientAction({
+                action: null,
+                reply: response.levelUp,
+                sock,
+                jid,
+                msg,
+                sender
+            });
+
+        } catch (err) {
+
+            console.log(
+                chalk.red("LEVEL UP CARD ERROR:", err.message)
+            );
+
+        }
+
+    }
+
     if (handled) {
         return;
     }
@@ -1347,6 +1385,29 @@ if (replyText) {
     });
 
     trackSentMessage(jid, sent);
+
+    if (response.levelUp) {
+
+        try {
+
+            await executeClientAction({
+                action: null,
+                reply: response.levelUp,
+                sock,
+                jid,
+                msg,
+                sender
+            });
+
+        } catch (err) {
+
+            console.log(
+                chalk.red("LEVEL UP CARD ERROR:", err.message)
+            );
+
+        }
+
+    }
 
 }
 
