@@ -445,7 +445,38 @@ const response = await core.execute(
     }
 );
 
-// Mark loading as complete
+// Mark loading as complete — delete the card itself, not just react
+// on the original message. Previously this only reacted, so the
+// "Processing your request..." card was left behind permanently,
+// most visibly when Core silently ignores the request (e.g. private
+// mode blocking a non-owner) and no other reply ever arrives.
+
+if (loadingMessage) {
+
+    try {
+
+        await sock.sendMessage(jid, {
+            delete: loadingMessage.key
+        });
+
+    } catch {}
+
+}
+
+console.log(
+    chalk.cyan("📤 Core response:")
+);
+
+console.dir(response, { depth: null });
+
+if (!response) return;
+
+// Request was silently blocked by Core (e.g. private mode and the
+// sender isn't the owner). Nothing further to send — the loading
+// card is already cleaned up above.
+if (response.ignored) {
+    return;
+}
 
 if (loadingMessage) {
 
@@ -461,14 +492,6 @@ if (loadingMessage) {
     } catch {}
 
 }
-
-                console.log(
-    chalk.cyan("📤 Core response:")
-);
-
-console.dir(response, { depth: null });
-
-                if (!response) return;
 
                 const replyData =
     response.reply?.reply ??
