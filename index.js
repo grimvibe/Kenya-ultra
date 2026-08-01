@@ -1194,6 +1194,105 @@ else if (response.action === "get_profile_picture") {
 
 }
 
+else if (response.action === "list_online") {
+
+    try {
+
+        const participants = response.participants || [];
+
+        if (!participants.length) {
+
+            await sock.sendMessage(jid, {
+                text: "❌ No group members to check."
+            });
+
+            return;
+
+        }
+
+        await sock.sendMessage(jid, {
+            text: "⏳ Checking who's online... this takes a few seconds."
+        });
+
+        const online = new Set();
+
+        const handler = (updates) => {
+
+            for (const update of updates) {
+
+                const presence = update.presences?.[update.id] ||
+                    (update.presences &&
+                        Object.values(update.presences)[0]);
+
+                if (
+                    presence?.lastKnownPresence &&
+                    presence.lastKnownPresence !== "unavailable"
+                ) {
+
+                    online.add(update.id);
+
+                }
+
+            }
+
+        };
+
+        sock.ev.on("presence.update", handler);
+
+        // Subscribing too fast in a row can get rate-limited, so
+        // stagger it slightly.
+        for (const participant of participants) {
+
+            try {
+                await sock.presenceSubscribe(participant);
+                await new Promise(r => setTimeout(r, 150));
+            } catch {}
+
+        }
+
+        // Give WhatsApp time to push back presence updates.
+        await new Promise(r => setTimeout(r, 8000));
+
+        sock.ev.off("presence.update", handler);
+
+        if (!online.size) {
+
+            await sock.sendMessage(jid, {
+                text:
+"😴 Couldn't detect anyone online right now.\n\nNote: this only picks up members whose privacy settings allow their online status to be seen — it won't be 100% complete."
+            });
+
+            return;
+
+        }
+
+        const onlineList = [...online];
+
+        const listText = onlineList
+            .map((p, i) => `${i + 1}. @${p.split("@")[0]}`)
+            .join("\n");
+
+        await sock.sendMessage(jid, {
+            text: `🟢 *Online Now (${onlineList.length})*\n\n${listText}`,
+            mentions: onlineList
+        });
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ list_online failed:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to check who's online."
+        });
+
+    }
+
+    return;
+
+}
+
 else if (response.action === "ping_probe") {
 
     try {
