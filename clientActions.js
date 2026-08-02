@@ -5,6 +5,8 @@ import path from "path";
 export async function executeClientAction({
     action,
     reply,
+    deleteTrigger,
+    kickTarget,
     sock,
     jid,
     msg,
@@ -57,6 +59,8 @@ export async function executeClientAction({
                     mimetype: reply.mimetype,
                     fileName: reply.fileName,
                     caption: reply.caption,
+                    mentions: reply.mentions || [],
+                    gifPlayback: reply.gifPlayback || undefined,
                     contextInfo: reply.contextInfo || undefined
                 });
 
@@ -80,9 +84,6 @@ export async function executeClientAction({
 
                     if (reply.file && reply.file.startsWith("data:")) {
 
-                        // Base64 data URI — e.g. a level-up card
-                        // rendered on the fly by Core. Decode straight
-                        // to a Buffer, no disk involved.
                         const base64 = reply.file.split(",")[1];
                         image = Buffer.from(base64, "base64");
 
@@ -173,7 +174,6 @@ END:VCARD`;
 
                     } else {
 
-                        // Group has no icon set — fall back to plain text
                         await sock.sendMessage(jid, {
                             text: reply.caption || "",
                             mentions: reply.mentions || []
@@ -300,10 +300,59 @@ END:VCARD`;
         case "delete_message":
             return true;
 
+        case "moderate": {
+
+            if (deleteTrigger) {
+
+                try {
+
+                    await sock.sendMessage(jid, {
+                        delete: msg.key
+                    });
+
+                } catch (error) {
+
+                    console.log(
+                        chalk.red(
+                            "❌ Failed to delete moderated message:",
+                            error.message
+                        )
+                    );
+
+                }
+
+            }
+
+            if (kickTarget) {
+
+                try {
+
+                    await sock.groupParticipantsUpdate(
+                        jid,
+                        [kickTarget],
+                        "remove"
+                    );
+
+                } catch (error) {
+
+                    console.log(
+                        chalk.red(
+                            "❌ Failed to kick moderated user:",
+                            error.message
+                        )
+                    );
+
+                }
+
+            }
+
+            return false;
+
+        }
+
         default:
             return false;
 
     }
 
-}
-
+        }
