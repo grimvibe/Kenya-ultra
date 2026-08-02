@@ -14,6 +14,56 @@ export async function executeClientAction({
 }) {
 
     // ==========================
+    // Moderation side effects (delete/kick) — always run
+    // first, independent of whether a reply is also sent,
+    // so a warning text doesn't swallow the actual action.
+    // ==========================
+
+    if (deleteTrigger) {
+
+        try {
+
+            await sock.sendMessage(jid, {
+                delete: msg.key
+            });
+
+        } catch (error) {
+
+            console.log(
+                chalk.red(
+                    "❌ Failed to delete moderated message:",
+                    error.message
+                )
+            );
+
+        }
+
+    }
+
+    if (kickTarget) {
+
+        try {
+
+            await sock.groupParticipantsUpdate(
+                jid,
+                [kickTarget],
+                "remove"
+            );
+
+        } catch (error) {
+
+            console.log(
+                chalk.red(
+                    "❌ Failed to kick moderated user:",
+                    error.message
+                )
+            );
+
+        }
+
+    }
+
+    // ==========================
     // Reply Types
     // ==========================
 
@@ -298,61 +348,12 @@ END:VCARD`;
 
         case "recover_view_once":
         case "delete_message":
+        case "moderate":
             return true;
-
-        case "moderate": {
-
-            if (deleteTrigger) {
-
-                try {
-
-                    await sock.sendMessage(jid, {
-                        delete: msg.key
-                    });
-
-                } catch (error) {
-
-                    console.log(
-                        chalk.red(
-                            "❌ Failed to delete moderated message:",
-                            error.message
-                        )
-                    );
-
-                }
-
-            }
-
-            if (kickTarget) {
-
-                try {
-
-                    await sock.groupParticipantsUpdate(
-                        jid,
-                        [kickTarget],
-                        "remove"
-                    );
-
-                } catch (error) {
-
-                    console.log(
-                        chalk.red(
-                            "❌ Failed to kick moderated user:",
-                            error.message
-                        )
-                    );
-
-                }
-
-            }
-
-            return false;
-
-        }
 
         default:
             return false;
 
     }
 
-        }
+                                }
