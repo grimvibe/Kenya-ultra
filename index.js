@@ -68,29 +68,7 @@ const MAX_RETRY_DELAY = 60000;
 
 let hasAttemptedAutoJoin = false;
 
-let PREFIX = ".";
-
-// Tracks message keys the bot has sent per chat during this runtime,
-// so .delall can clean them up. Capped per chat to avoid unbounded growth.
-const recentBotMessages = new Map();
-
-function trackSentMessage(jid, sentMsg) {
-
-    if (!sentMsg?.key) return;
-
-    if (!recentBotMessages.has(jid)) {
-        recentBotMessages.set(jid, []);
-    }
-
-    const list = recentBotMessages.get(jid);
-
-    list.push(sentMsg.key);
-
-    if (list.length > 50) {
-        list.shift();
-    }
-
-}
+const PREFIX = ".";
 
 async function start() {
 
@@ -188,30 +166,6 @@ async function connect(authState) {
 
                 }
 
-                try {
-
-                    const settings = await core.getSettings(SESSION_ID);
-
-                    PREFIX = settings.prefix || ".";
-
-                    console.log(
-                        chalk.cyan(`✓ Prefix   : ${PREFIX}`)
-                    );
-
-                    console.log(
-                        chalk.cyan(`✓ Mode     : ${settings.mode}`)
-                    );
-
-                } catch (err) {
-
-                    console.log(
-                        chalk.yellow(
-                            "⚠ Failed to load saved prefix, using default '.'"
-                        )
-                    );
-
-                }
-
                 const heartbeat =
     await core.heartbeat();
 
@@ -300,19 +254,6 @@ if (heartbeat) {
             const sender =
                 msg.key.participant || msg.key.remoteJid;
 
-            // Baileys 7.x LID migration: the same person can show up as
-            // either their phone-number JID (@s.whatsapp.net) or their
-            // LID (@lid) depending on how WhatsApp routed this specific
-            // message. `participantAlt`/`remoteJidAlt` gives the OTHER
-            // form of the same identity when WhatsApp knows it, so we
-            // track both to avoid treating one person as two people.
-            const senderAlt =
-                msg.key.participantAlt ||
-                msg.key.remoteJidAlt ||
-                null;
-
-            const senderIdentities = [sender, senderAlt].filter(Boolean);
-
             const text =
                 msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
@@ -346,7 +287,7 @@ if (heartbeat) {
                     groupMetadata = await sock.groupMetadata(jid);
 
 isAdmin = groupMetadata.participants.some(
-    p => senderIdentities.includes(p.id) && p.admin
+    p => p.id === sender && p.admin
 );
 
 isBotAdmin = groupMetadata.participants.some(
@@ -407,35 +348,17 @@ Please wait...
 ━━━━━━━━━━━━━━`
     });
 
-    trackSentMessage(jid, loadingMessage);
-
 }
 
 // Execute command
-
-let ppUrl = null;
-
-try {
-
-    ppUrl = await sock.profilePictureUrl(sender, "image");
-
-} catch {
-
-    // No public profile picture, or privacy settings block it —
-    // expected for a lot of users, just fall back to no avatar.
-    ppUrl = null;
-
-}
 
 const response = await core.execute(
     SESSION_ID,
     {
         text,
         sender,
-        senderAlt,
         chat: jid,
         pushName: msg.pushName || "",
-        ppUrl,
         isGroup,
         isAdmin,
         isBotAdmin,
@@ -445,38 +368,7 @@ const response = await core.execute(
     }
 );
 
-// Mark loading as complete — delete the card itself, not just react
-// on the original message. Previously this only reacted, so the
-// "Processing your request..." card was left behind permanently,
-// most visibly when Core silently ignores the request (e.g. private
-// mode blocking a non-owner) and no other reply ever arrives.
-
-if (loadingMessage) {
-
-    try {
-
-        await sock.sendMessage(jid, {
-            delete: loadingMessage.key
-        });
-
-    } catch {}
-
-}
-
-console.log(
-    chalk.cyan("📤 Core response:")
-);
-
-console.dir(response, { depth: null });
-
-if (!response) return;
-
-// Request was silently blocked by Core (e.g. private mode and the
-// sender isn't the owner). Nothing further to send — the loading
-// card is already cleaned up above.
-if (response.ignored) {
-    return;
-}
+// Mark loading as complete
 
 if (loadingMessage) {
 
@@ -492,6 +384,14 @@ if (loadingMessage) {
     } catch {}
 
 }
+
+                console.log(
+    chalk.cyan("📤 Core response:")
+);
+
+console.dir(response, { depth: null });
+
+                if (!response) return;
 
                 const replyData =
     response.reply?.reply ??
@@ -513,17 +413,15 @@ const replyMentions =
 
     try {
 
-        const ids = response.targets || (response.target ? [response.target] : []);
-
         await sock.groupParticipantsUpdate(
             jid,
-            ids,
+            [response.target],
             "remove"
         );
 
         console.log(
             chalk.green(
-                `👢 Removed ${ids.length} participant(s)`
+                `👢 Removed ${response.target}`
             )
         );
 
@@ -548,6 +446,7 @@ const replyMentions =
     }
 
 }
+
 else if (response.action === "add") {
 
     try {
@@ -590,41 +489,17 @@ else if (response.action === "promote") {
 
     try {
 
-        const ids = response.targets || (response.target ? [response.target] : []);
-
         await sock.groupParticipantsUpdate(
             jid,
-            ids,
+            [response.target],
             "promote"
         );
 
         console.log(
             chalk.green(
-                `👑 Promoted ${ids.length} participant(s)`
+                `👑 Promoted ${response.target}`
             )
         );
-
-        if (response.revertAfterMs) {
-
-            setTimeout(async () => {
-
-                try {
-
-                    await sock.groupParticipantsUpdate(jid, ids, "demote");
-
-                    console.log(
-                        chalk.yellow(`⏱ Auto-reverted promotion for ${ids.length} participant(s)`)
-                    );
-
-                } catch (err) {
-
-                    console.log(chalk.red("❌ Failed to auto-revert promotion:", err.message));
-
-                }
-
-            }, response.revertAfterMs);
-
-        }
 
     } catch (error) {
 
@@ -652,719 +527,22 @@ else if (response.action === "demote") {
 
     try {
 
-        const ids = response.targets || (response.target ? [response.target] : []);
-
         await sock.groupParticipantsUpdate(
             jid,
-            ids,
+            [response.target],
             "demote"
         );
 
         console.log(
             chalk.green(
-                `⬇️ Demoted ${ids.length} participant(s)`
+                `⬇️ Demoted ${response.target}`
             )
         );
-
-        if (response.revertAfterMs) {
-
-            setTimeout(async () => {
-
-                try {
-
-                    await sock.groupParticipantsUpdate(jid, ids, "promote");
-
-                    console.log(
-                        chalk.yellow(`⏱ Auto-restored admin for ${ids.length} participant(s)`)
-                    );
-
-                } catch (err) {
-
-                    console.log(chalk.red("❌ Failed to auto-restore admin:", err.message));
-
-                }
-
-            }, response.revertAfterMs);
-
-        }
 
     } catch (error) {
 
         console.log(
             chalk.red(error.message)
-        );
-
-    }
-
-}
-
-else if (response.action === "group_setting") {
-
-    try {
-
-        await sock.groupSettingUpdate(
-            jid,
-            response.setting
-        );
-
-        console.log(
-            chalk.green(
-                `⚙️ Group setting updated: ${response.setting}`
-            )
-        );
-
-        if (response.revertAfterMs) {
-
-            const reverted =
-                response.setting === "announcement"
-                    ? "not_announcement"
-                    : "announcement";
-
-            setTimeout(async () => {
-
-                try {
-
-                    await sock.groupSettingUpdate(jid, reverted);
-
-                    console.log(
-                        chalk.yellow(`⏱ Auto-reverted group setting to: ${reverted}`)
-                    );
-
-                } catch (err) {
-
-                    console.log(chalk.red("❌ Failed to auto-revert group setting:", err.message));
-
-                }
-
-            }, response.revertAfterMs);
-
-        }
-
-    } catch (error) {
-
-        console.log(
-            chalk.red(
-                "❌ Failed to update group setting:",
-                error.message
-            )
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to update the group setting. Make sure the bot is an admin."
-        });
-
-        return;
-
-    }
-
-}
-
-else if (response.action === "update_subject") {
-
-    try {
-
-        await sock.groupUpdateSubject(
-            jid,
-            response.subject
-        );
-
-        console.log(
-            chalk.green(`✏️ Group name updated to: ${response.subject}`)
-        );
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to update group name:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to update the group name. Make sure the bot is an admin."
-        });
-
-        return;
-
-    }
-
-}
-
-else if (response.action === "update_description") {
-
-    try {
-
-        await sock.groupUpdateDescription(
-            jid,
-            response.description
-        );
-
-        console.log(
-            chalk.green("📝 Group description updated")
-        );
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to update group description:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to update the group description. Make sure the bot is an admin."
-        });
-
-        return;
-
-    }
-
-}
-
-else if (response.action === "revoke_invite") {
-
-    try {
-
-        const newCode = await sock.groupRevokeInvite(jid);
-
-        await sock.sendMessage(jid, {
-            text:
-`🔗 *Group Link Reset*
-
-New link:
-https://chat.whatsapp.com/${newCode}
-
-━━━━━━━━━━━━━━
-
-🐺 Powered by Kenya-Ultra 👑`
-        });
-
-        console.log(chalk.green("🔗 Group invite link reset"));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to reset invite link:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to reset the group link. Make sure the bot is an admin."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "get_invite_link") {
-
-    try {
-
-        const code = await sock.groupInviteCode(jid);
-
-        await sock.sendMessage(jid, {
-            text:
-`🔗 *Group Invite Link*
-
-https://chat.whatsapp.com/${code}
-
-━━━━━━━━━━━━━━
-
-🐺 Powered by Kenya-Ultra 👑`
-        });
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to fetch invite link:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to fetch the group link. Make sure the bot is an admin."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "export_vcf") {
-
-    try {
-
-        const lines = response.participants.map((id, i) => {
-
-            const number = id.split("@")[0];
-
-            return `BEGIN:VCARD\nVERSION:3.0\nFN:Member ${i + 1}\nTEL;type=CELL:+${number}\nEND:VCARD`;
-
-        });
-
-        const vcf = lines.join("\n");
-
-        await sock.sendMessage(jid, {
-            document: Buffer.from(vcf, "utf-8"),
-            mimetype: "text/vcard",
-            fileName: "members.vcf"
-        });
-
-        console.log(chalk.green(`📇 Exported ${response.participants.length} contacts`));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to export contacts:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to export contacts."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "create_group") {
-
-    try {
-
-        const participants = [response.sender].filter(Boolean);
-
-        const group = await sock.groupCreate(
-            response.subject,
-            participants
-        );
-
-        await sock.sendMessage(response.sender || jid, {
-            text:
-`✅ *Group Created*
-
-📛 Name: ${response.subject}
-🔗 https://chat.whatsapp.com/${await sock.groupInviteCode(group.id)}
-
-━━━━━━━━━━━━━━
-
-🐺 Powered by Kenya-Ultra 👑`
-        });
-
-        console.log(chalk.green(`✅ Created group: ${response.subject}`));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to create group:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to create the group."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "handle_join_requests") {
-
-    try {
-
-        const pending = await sock.groupRequestParticipantsList(jid);
-
-        if (!pending?.length) {
-
-            await sock.sendMessage(jid, {
-                text: "ℹ️ There are no pending join requests."
-            });
-
-            return;
-
-        }
-
-        const ids = pending.map(p => p.jid);
-
-        await sock.groupRequestParticipantsUpdate(
-            jid,
-            ids,
-            response.mode
-        );
-
-        await sock.sendMessage(jid, {
-            text:
-                response.mode === "approve"
-                    ? `✅ Approved ${ids.length} join request(s).`
-                    : `❌ Rejected ${ids.length} join request(s).`
-        });
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to handle join requests:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to handle join requests. Make sure the bot is an admin."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "set_group_photo") {
-
-    try {
-
-        const quoted =
-            msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-        const media = quoted ? await downloadQuotedMedia(quoted) : null;
-
-        if (!media || media.type !== "image") {
-
-            await sock.sendMessage(jid, {
-                text: "❌ Reply to an image with .setppgc to use it as the group photo."
-            });
-
-            return;
-
-        }
-
-        await sock.updateProfilePicture(jid, media.buffer);
-
-        await sock.sendMessage(jid, {
-            text: "✅ Group photo updated."
-        });
-
-        console.log(chalk.green("🖼️ Group photo updated"));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to update group photo:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to update the group photo. Make sure the bot is an admin."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "remove_group_photo") {
-
-    try {
-
-        await sock.removeProfilePicture(jid);
-
-        await sock.sendMessage(jid, {
-            text: "✅ Group photo removed."
-        });
-
-        console.log(chalk.green("🗑️ Group photo removed"));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to remove group photo:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to remove the group photo. Make sure the bot is an admin."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "send_poll") {
-
-    try {
-
-        await sock.sendMessage(jid, {
-            poll: {
-                name: response.question,
-                values: response.options,
-                selectableCount: response.selectableCount || 1
-            }
-        });
-
-        console.log(chalk.green(`📊 Poll sent: ${response.question}`));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to send poll:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to create the poll."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "delete_own_messages") {
-
-    try {
-
-        const keys = recentBotMessages.get(jid) || [];
-
-        for (const key of keys) {
-
-            try {
-                await sock.sendMessage(jid, { delete: key });
-            } catch {}
-
-        }
-
-        recentBotMessages.delete(jid);
-
-        console.log(chalk.yellow(`🧹 Cleared ${keys.length} bot message(s) in ${jid}`));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to clear bot messages:", error.message)
-        );
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "leave_group") {
-
-    try {
-
-        await sock.sendMessage(jid, {
-            text: "👋 Leaving this group. Goodbye!"
-        });
-
-        await sock.groupLeave(jid);
-
-        console.log(chalk.yellow(`👋 Left group: ${jid}`));
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Failed to leave group:", error.message)
-        );
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "get_profile_picture") {
-
-    try {
-
-        const ppUrl = await sock.profilePictureUrl(
-            response.target,
-            "image"
-        );
-
-        await sock.sendMessage(jid, {
-            image: { url: ppUrl },
-            caption: `🖼️ Profile picture of @${response.target.split("@")[0]}`,
-            mentions: [response.target]
-        });
-
-    } catch (error) {
-
-        await sock.sendMessage(jid, {
-            text: "❌ Couldn't get that profile picture — they may not have one, or their privacy settings block it."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "list_online") {
-
-    try {
-
-        const participants = response.participants || [];
-
-        if (!participants.length) {
-
-            await sock.sendMessage(jid, {
-                text: "❌ No group members to check."
-            });
-
-            return;
-
-        }
-
-        await sock.sendMessage(jid, {
-            text: "⏳ Checking who's online... this takes a few seconds."
-        });
-
-        const online = new Set();
-
-        const handler = (updates) => {
-
-            for (const update of updates) {
-
-                const presence = update.presences?.[update.id] ||
-                    (update.presences &&
-                        Object.values(update.presences)[0]);
-
-                if (
-                    presence?.lastKnownPresence &&
-                    presence.lastKnownPresence !== "unavailable"
-                ) {
-
-                    online.add(update.id);
-
-                }
-
-            }
-
-        };
-
-        sock.ev.on("presence.update", handler);
-
-        // Subscribing too fast in a row can get rate-limited, so
-        // stagger it slightly.
-        for (const participant of participants) {
-
-            try {
-                await sock.presenceSubscribe(participant);
-                await new Promise(r => setTimeout(r, 150));
-            } catch {}
-
-        }
-
-        // Give WhatsApp time to push back presence updates.
-        await new Promise(r => setTimeout(r, 8000));
-
-        sock.ev.off("presence.update", handler);
-
-        if (!online.size) {
-
-            await sock.sendMessage(jid, {
-                text:
-"😴 Couldn't detect anyone online right now.\n\nNote: this only picks up members whose privacy settings allow their online status to be seen — it won't be 100% complete."
-            });
-
-            return;
-
-        }
-
-        const onlineList = [...online];
-
-        const listText = onlineList
-            .map((p, i) => `${i + 1}. @${p.split("@")[0]}`)
-            .join("\n");
-
-        await sock.sendMessage(jid, {
-            text: `🟢 *Online Now (${onlineList.length})*\n\n${listText}`,
-            mentions: onlineList
-        });
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ list_online failed:", error.message)
-        );
-
-        await sock.sendMessage(jid, {
-            text: "❌ Failed to check who's online."
-        });
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "ping_probe") {
-
-    try {
-
-        await sock.sendMessage(jid, {
-            react: { text: "🚀", key: msg.key }
-        });
-
-        const start = Date.now();
-
-        const { key } = await sock.sendMessage(jid, { text: "wait.." });
-
-        const done = Date.now() - start;
-
-        const pong =
-            `*Pong*:\n> ⏱️ ${done}ms (${Math.round(done / 100) / 10}s)`;
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        await sock.sendMessage(jid, { text: pong, edit: key });
-
-    } catch (error) {
-
-        console.log(
-            chalk.red("❌ Ping probe failed:", error.message)
-        );
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "delete_message") {
-
-    try {
-
-        await sock.sendMessage(jid, {
-            delete: msg.key
-        });
-
-        console.log(
-            chalk.yellow(
-                `🔇 Deleted message from muted user ${sender}`
-            )
-        );
-
-    } catch (error) {
-
-        console.log(
-            chalk.red(
-                "❌ Failed to delete muted user's message:",
-                error.message
-            )
-        );
-
-    }
-
-    return;
-
-}
-
-else if (response.action === "update_prefix") {
-
-    if (response.prefix) {
-
-        PREFIX = response.prefix;
-
-        console.log(
-            chalk.green(
-                `🔧 Prefix updated to: ${PREFIX}`
-            )
         );
 
     }
@@ -1464,34 +642,13 @@ else if (response.action === "update_prefix") {
     const handled = await executeClientAction({
         action: response.action,
         reply: response.reply,
+        deleteTrigger: response.deleteTrigger,
+        kickTarget: response.kickTarget,
         sock,
         jid,
         msg,
         sender
     });
-
-    if (response.levelUp) {
-
-        try {
-
-            await executeClientAction({
-                action: null,
-                reply: response.levelUp,
-                sock,
-                jid,
-                msg,
-                sender
-            });
-
-        } catch (err) {
-
-            console.log(
-                chalk.red("LEVEL UP CARD ERROR:", err.message)
-            );
-
-        }
-
-    }
 
     if (handled) {
         return;
@@ -1501,35 +658,10 @@ else if (response.action === "update_prefix") {
 
 if (replyText) {
 
-    const sent = await sock.sendMessage(jid, {
+    await sock.sendMessage(jid, {
         text: replyText,
         mentions: replyMentions
     });
-
-    trackSentMessage(jid, sent);
-
-    if (response.levelUp) {
-
-        try {
-
-            await executeClientAction({
-                action: null,
-                reply: response.levelUp,
-                sock,
-                jid,
-                msg,
-                sender
-            });
-
-        } catch (err) {
-
-            console.log(
-                chalk.red("LEVEL UP CARD ERROR:", err.message)
-            );
-
-        }
-
-    }
 
 }
 
@@ -1562,4 +694,5 @@ if (replyText) {
 
 start();
 
-            
+
+                           
