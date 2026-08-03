@@ -444,9 +444,18 @@ async function connect(authState) {
     // changes), so the only way to automate this is by polling
     // groupRequestParticipantsList on an interval — not instant, but
     // it's the only mechanism the library actually exposes.
-    const JOIN_REQUEST_POLL_MS = 60 * 1000;
+    //
+    // groupFetchAllParticipating() is a heavy call (full metadata for
+    // every group the account is in), so this deliberately runs
+    // infrequently and backs off further on failure — polling it
+    // every 60s was tripping WhatsApp's own rate limiting
+    // ("rate-overlimit") on accounts in a lot of groups.
+    const JOIN_REQUEST_POLL_MS = 5 * 60 * 1000; // 5 minutes
+    const JOIN_REQUEST_MAX_BACKOFF_MS = 30 * 60 * 1000; // cap at 30 minutes
 
-    setInterval(async () => {
+    let joinRequestBackoffMs = 0;
+
+    async function pollJoinRequests() {
 
         try {
 
@@ -484,18 +493,33 @@ async function connect(authState) {
 
             }
 
+            joinRequestBackoffMs = 0;
+
         } catch (error) {
+
+            joinRequestBackoffMs = joinRequestBackoffMs
+                ? Math.min(joinRequestBackoffMs * 2, JOIN_REQUEST_MAX_BACKOFF_MS)
+                : JOIN_REQUEST_POLL_MS;
 
             console.log(
                 chalk.red(
-                    "❌ Join-request polling failed:",
+                    `❌ Join-request polling failed (backing off ${Math.round(
+                        joinRequestBackoffMs / 1000
+                    )}s):`,
                     error.message
                 )
             );
 
         }
 
-    }, JOIN_REQUEST_POLL_MS);
+        setTimeout(
+            pollJoinRequests,
+            JOIN_REQUEST_POLL_MS + joinRequestBackoffMs
+        );
+
+    }
+
+    setTimeout(pollJoinRequests, JOIN_REQUEST_POLL_MS);
 
     sock.ev.on(
         "creds.update",
@@ -1550,6 +1574,89 @@ else if (response.action === "take_sticker") {
 
         await sock.sendMessage(jid, {
             text: "❌ Failed to save that sticker."
+        });
+
+    }
+
+    return;
+
+}
+
+else if (response.action === "send_media_batch") {
+
+    try {
+
+        const items = response.items || [];
+
+        if (!items.length) {
+
+            await sock.sendMessage(jid, {
+                text: "❌ No media found to send."
+            });
+
+            return;
+
+        }
+
+        for (let i = 0; i < items.length; i++) {
+
+            const item = items[i];
+            const isLast = i === items.length - 1;
+
+            try {
+
+                if (item.type === "video") {
+
+                    await sock.sendMessage(jid, {
+                        video: { url: item.url },
+                        caption: isLast ? response.caption : undefined
+                    });
+
+                } else {
+
+                    await sock.sendMessage(jid, {
+                        image: { url: item.url },
+                        caption: isLast ? response.caption : undefined
+                    });
+
+                }
+
+            } catch (itemError) {
+
+                console.log(
+                    chalk.red(
+                        `❌ Failed to send media batch item ${i + 1}:`,
+                        itemError.message
+                    )
+                );
+
+            }
+
+        }
+
+        if (response.reactEmoji) {
+
+            try {
+
+                await sock.sendMessage(jid, {
+                    react: {
+                        text: response.reactEmoji,
+                        key: msg.key
+                    }
+                });
+
+            } catch {}
+
+        }
+
+    } catch (error) {
+
+        console.log(
+            chalk.red("❌ Media batch send failed:", error.message)
+        );
+
+        await sock.sendMessage(jid, {
+            text: "❌ Failed to send that media."
         });
 
     }
