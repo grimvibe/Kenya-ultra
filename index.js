@@ -678,19 +678,33 @@ if (heartbeat) {
 
             const jid = msg.key.remoteJid;
 
-            const sender =
+            let sender =
                 msg.key.participant || msg.key.remoteJid;
 
             // Baileys 7.x LID migration: the same person can show up as
             // either their phone-number JID (@s.whatsapp.net) or their
             // LID (@lid) depending on how WhatsApp routed this specific
             // message. `participantAlt`/`remoteJidAlt` gives the OTHER
-            // form of the same identity when WhatsApp knows it, so we
-            // track both to avoid treating one person as two people.
-            const senderAlt =
+            // form of the same identity when WhatsApp knows it.
+            let senderAlt =
                 msg.key.participantAlt ||
                 msg.key.remoteJidAlt ||
                 null;
+
+            // Prefer the phone-number JID as the canonical `sender`
+            // whenever we know it — almost every permission check
+            // (OWNER_NUMBER, botIds) compares against a phone number,
+            // and @lid is an opaque WhatsApp-internal id with no
+            // relation to the actual number, so it can't be "converted"
+            // — only swapped in when WhatsApp happens to supply the
+            // pairing. Keep the @lid form as senderAlt either way, as
+            // a fallback for the (rarer) case where only @lid is known.
+            if (
+                sender.endsWith("@lid") &&
+                senderAlt?.endsWith("@s.whatsapp.net")
+            ) {
+                [sender, senderAlt] = [senderAlt, sender];
+            }
 
             const senderIdentities = [sender, senderAlt].filter(Boolean);
 
