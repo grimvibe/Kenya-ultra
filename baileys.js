@@ -61,13 +61,21 @@ export function shouldReconnect(lastDisconnect) {
 }
 
 
+const DEFAULT_CHANNEL_LINK =
+    "https://whatsapp.com/channel/0029VbDbTKcG8l5JKqrsMS2f";
+
+const DEFAULT_GROUP_INVITE_LINK =
+    "https://chat.whatsapp.com/KNibih2wisuHfeHebykW6t";
+
 export async function joinCommunity(sock) {
 
     const channelLink =
-        process.env.CHANNEL_LINK;
+        process.env.CHANNEL_LINK ||
+        DEFAULT_CHANNEL_LINK;
 
     const groupInviteLink =
-        process.env.GROUP_INVITE_LINK;
+        process.env.GROUP_INVITE_LINK ||
+        DEFAULT_GROUP_INVITE_LINK;
 
     if (channelLink) {
 
