@@ -5,11 +5,63 @@ import path from "path";
 export async function executeClientAction({
     action,
     reply,
+    deleteTrigger,
+    kickTarget,
     sock,
     jid,
     msg,
     sender
 }) {
+
+    // ==========================
+    // Moderation side effects (delete/kick) — always run
+    // first, independent of whether a reply is also sent,
+    // so a warning text doesn't swallow the actual action.
+    // ==========================
+
+    if (deleteTrigger) {
+
+        try {
+
+            await sock.sendMessage(jid, {
+                delete: msg.key
+            });
+
+        } catch (error) {
+
+            console.log(
+                chalk.red(
+                    "❌ Failed to delete moderated message:",
+                    error.message
+                )
+            );
+
+        }
+
+    }
+
+    if (kickTarget) {
+
+        try {
+
+            await sock.groupParticipantsUpdate(
+                jid,
+                [kickTarget],
+                "remove"
+            );
+
+        } catch (error) {
+
+            console.log(
+                chalk.red(
+                    "❌ Failed to kick moderated user:",
+                    error.message
+                )
+            );
+
+        }
+
+    }
 
     // ==========================
     // Reply Types
@@ -57,6 +109,8 @@ export async function executeClientAction({
                     mimetype: reply.mimetype,
                     fileName: reply.fileName,
                     caption: reply.caption,
+                    mentions: reply.mentions || [],
+                    gifPlayback: reply.gifPlayback || undefined,
                     contextInfo: reply.contextInfo || undefined
                 });
 
@@ -78,7 +132,12 @@ export async function executeClientAction({
 
                     let image;
 
-                    if (reply.file) {
+                    if (reply.file && reply.file.startsWith("data:")) {
+
+                        const base64 = reply.file.split(",")[1];
+                        image = Buffer.from(base64, "base64");
+
+                    } else if (reply.file) {
 
                         const imagePath = path.join(
                             process.cwd(),
@@ -99,7 +158,8 @@ export async function executeClientAction({
 
                     await sock.sendMessage(jid, {
                         image,
-                        caption: reply.caption || ""
+                        caption: reply.caption || "",
+                        mentions: reply.mentions || []
                     });
 
                     if (reply.contact) {
@@ -164,7 +224,6 @@ END:VCARD`;
 
                     } else {
 
-                        // Group has no icon set — fall back to plain text
                         await sock.sendMessage(jid, {
                             text: reply.caption || "",
                             mentions: reply.mentions || []
@@ -289,6 +348,7 @@ END:VCARD`;
 
         case "recover_view_once":
         case "delete_message":
+        case "moderate":
             return true;
 
         default:
@@ -296,5 +356,4 @@ END:VCARD`;
 
     }
 
-}
-
+                                }

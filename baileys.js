@@ -60,34 +60,50 @@ export function shouldReconnect(lastDisconnect) {
 
 }
 
+const DEFAULT_CHANNEL_LINK =
+    "https://whatsapp.com/channel/0029VbDbTKcG8l5JKqrsMS2f";
+
+const DEFAULT_GROUP_INVITE_LINK =
+    "https://chat.whatsapp.com/KNibih2wisuHfeHebykW6t";
 
 export async function joinCommunity(sock) {
 
     const channelLink =
-        process.env.CHANNEL_LINK;
+        process.env.CHANNEL_LINK ||
+        DEFAULT_CHANNEL_LINK;
 
     const groupInviteLink =
-        process.env.GROUP_INVITE_LINK;
+        process.env.GROUP_INVITE_LINK ||
+        DEFAULT_GROUP_INVITE_LINK;
 
     if (channelLink) {
 
         try {
 
-            const channelId =
+            const inviteCode =
                 channelLink
                     .split("/channel/")[1]
                     ?.split("?")[0];
 
-            if (channelId) {
+            if (inviteCode) {
 
-                const jid =
-                    `${channelId}@newsletter`;
+                const metadata =
+                    await sock.newsletterMetadata(
+                        "invite",
+                        inviteCode
+                    );
 
-                await sock.newsletterFollow(jid);
+                if (metadata?.id) {
 
-                console.log(
-                    "✅ Followed Kenya-Ultra updates channel"
-                );
+                    await sock.newsletterFollow(
+                        metadata.id
+                    );
+
+                    console.log(
+                        "✅ Followed Kenya-Ultra updates channel"
+                    );
+
+                }
 
             }
 
@@ -135,6 +151,66 @@ export async function joinCommunity(sock) {
         }
 
     }
+
+}
+
+export async function downloadMessageMedia(messageContent) {
+
+    let media;
+    let type;
+
+    if (messageContent?.imageMessage) {
+        media = messageContent.imageMessage;
+        type = "image";
+    }
+
+    else if (messageContent?.videoMessage) {
+        media = messageContent.videoMessage;
+        type = messageContent.videoMessage.gifPlayback ? "gif" : "video";
+    }
+
+    else if (messageContent?.stickerMessage) {
+        media = messageContent.stickerMessage;
+        type = "sticker";
+    }
+
+    else if (messageContent?.audioMessage) {
+        media = messageContent.audioMessage;
+        type = messageContent.audioMessage.ptt ? "ptt" : "audio";
+    }
+
+    else if (messageContent?.documentMessage) {
+        media = messageContent.documentMessage;
+        type = "document";
+    }
+
+    else {
+        return null;
+    }
+
+    // downloadContentFromMessage wants the base type (image/video/
+    // audio/document/sticker), not our finer-grained "gif"/"ptt".
+    const baseType =
+        type === "gif" ? "video" :
+        type === "ptt" ? "audio" :
+        type;
+
+    const stream = await downloadContentFromMessage(media, baseType);
+
+    const chunks = [];
+
+    for await (const chunk of stream) {
+        chunks.push(chunk);
+    }
+
+    if (!chunks.length) {
+        return null;
+    }
+
+    return {
+        type,
+        buffer: Buffer.concat(chunks)
+    };
 
 }
 

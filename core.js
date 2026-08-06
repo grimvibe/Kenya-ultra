@@ -25,7 +25,8 @@ class KenyaUltraCore {
             return {
                 success: data.success,
                 client: data.client,
-                auth: data.auth
+                auth: data.auth,
+                authRaw: data.authRaw
             };
 
         } catch (error) {
