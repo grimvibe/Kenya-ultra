@@ -5,17 +5,6 @@ import core from "./core.js";
 
 const AUTH_FOLDER = path.join(process.cwd(), "auth_info");
 
-function restoreBuffers(value) {
-
-    if (!value) return value;
-
-    return JSON.parse(
-        JSON.stringify(value),
-        BufferJSON.reviver
-    );
-
-}
-
 function validateCredentials(creds) {
     /**
      * Validates that all required credential fields are present
@@ -84,8 +73,29 @@ export async function bootstrapAuthState(sessionId) {
 
         }
 
+        // authRaw is the whole { creds, keys } payload, serialized on
+        // Core's side with BufferJSON.replacer and never touched by
+        // plain JSON.stringify/parse in between (Express and axios
+        // both bypass BufferJSON, which silently corrupts the buffer
+        // encoding — see api/validate.js on Core for the full
+        // explanation). Parsing this string directly with
+        // BufferJSON.reviver is the only path that reconstructs real,
+        // usable Buffers.
+        if (!validation.authRaw) {
+
+            throw new Error(
+                "Core did not return authRaw — update Core to the version that includes it in /validate."
+            );
+
+        }
+
+        const restoredAuth = JSON.parse(
+            validation.authRaw,
+            BufferJSON.reviver
+        );
+
         // Restore credentials
-        const restoredCreds = restoreBuffers(validation.auth.creds);
+        const restoredCreds = restoredAuth.creds || {};
         
         // ✅ FIX: Validate credentials before assigning
         if (!validateCredentials(restoredCreds)) {
@@ -98,12 +108,11 @@ export async function bootstrapAuthState(sessionId) {
 
         // Restore signal keys safely
         if (
-            validation.auth.keys &&
-            typeof validation.auth.keys === "object"
+            restoredAuth.keys &&
+            typeof restoredAuth.keys === "object"
         ) {
 
-            const restored =
-                restoreBuffers(validation.auth.keys);
+            const restored = restoredAuth.keys;
 
             for (const category of Object.keys(restored)) {
 

@@ -1,5 +1,7 @@
 import { Sticker, StickerTypes } from "wa-sticker-formatter";
-import { Image } from "node-webpmux";
+import webpmux from "node-webpmux";
+
+const { Image } = webpmux;
 
 /**
  * Converts a raw image/video/gif buffer into a WhatsApp-ready sticker
