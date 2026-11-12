@@ -421,7 +421,23 @@ async function start() {
     chalk.blue("🌍 Connecting to Kenya-Ultra Core...")
 );
 
-await core.bootstrap();
+// Render free-tier Core can take ~50s to wake up (returns 502/503 meanwhile).
+// Retry instead of crashing so the bot doesn't restart-loop.
+const MAX_ATTEMPTS = 12;
+for (let attempt = 1; ; attempt++) {
+    try {
+        await core.bootstrap();
+        break;
+    } catch (err) {
+        if (attempt >= MAX_ATTEMPTS) throw err;
+        console.log(
+            chalk.yellow(
+                `⏳ Core not ready (${err.message}). Retry ${attempt}/${MAX_ATTEMPTS - 1} in 10s...`
+            )
+        );
+        await new Promise((r) => setTimeout(r, 10000));
+    }
+}
 
 console.log("");
 
